@@ -1,0 +1,1950 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SosyoLab — Sosyoloji Bölümü Ders Arşivi</title>
+<meta name="description" content="Erciyes Üniversitesi Sosyoloji Bölümü ders materyalleri arşivi.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230F1B26'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='34' font-weight='700' text-anchor='middle' fill='%23D6A64A'%3ES%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+</head>
+<body>
+<script>
+  /* SosyoLab, Claude artifact ortamında window.storage API'sini kullanıyor.
+     GitHub Pages'te böyle bir API olmadığı için aynı sözleşmeyi localStorage
+     üzerinden karşılıyoruz. Veri yalnızca kullanıcının kendi tarayıcısında durur. */
+  (function () {
+    if (window.storage) return;
+    var bellek = {};
+    var yerelVar = (function () {
+      try { var t = "__sl__"; window.localStorage.setItem(t, "1"); window.localStorage.removeItem(t); return true; }
+      catch (e) { return false; }
+    })();
+    var al = function (k) { return yerelVar ? window.localStorage.getItem(k) : (k in bellek ? bellek[k] : null); };
+    var koy = function (k, v) { if (yerelVar) window.localStorage.setItem(k, v); else bellek[k] = v; };
+    var sil = function (k) { if (yerelVar) window.localStorage.removeItem(k); else delete bellek[k]; };
+
+    window.storage = {
+      get: function (key) {
+        var v = al(key);
+        if (v === null) return Promise.reject(new Error("kayıt yok: " + key));
+        return Promise.resolve({ key: key, value: v, shared: false });
+      },
+      set: function (key, value) {
+        try { koy(key, String(value)); return Promise.resolve({ key: key, value: value, shared: false }); }
+        catch (e) { return Promise.reject(e); }
+      },
+      delete: function (key) {
+        sil(key);
+        return Promise.resolve({ key: key, deleted: true, shared: false });
+      },
+      list: function (prefix) {
+        var k = [], i;
+        if (yerelVar) { for (i = 0; i < window.localStorage.length; i++) k.push(window.localStorage.key(i)); }
+        else { k = Object.keys(bellek); }
+        if (prefix) k = k.filter(function (x) { return x.indexOf(prefix) === 0; });
+        return Promise.resolve({ keys: k, prefix: prefix, shared: false });
+      }
+    };
+  })();
+</script>
+<style>
+  #sosyolab {
+    --ink: #0F1B26;
+    --ink-2: #16242F;
+    --ink-3: #22333F;
+    --ivory: #F5F3ED;
+    --ivory-2: #EDEAE1;
+    --surface: #FFFFFF;
+    --border: #DFDBD0;
+    --border-soft: #EAE7DE;
+    --text: #17242F;
+    --text-2: #5C6B78;
+    --text-3: #6F7B86;
+    --amber: #8A6113;
+    --amber-soft: #F2E7D0;
+
+    --r: 6px;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Newsreader", Georgia, serif;
+
+    font-family: var(--sans);
+    color: var(--text);
+    background: var(--ivory);
+    line-height: 1.5;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
+  }
+
+  html, body { margin: 0; padding: 0; background: #F5F3ED; min-height: 100%; }
+
+  #sosyolab *, #sosyolab *::before, #sosyolab *::after { box-sizing: border-box; }
+
+  :where(#sosyolab) button,
+  :where(#sosyolab) input,
+  :where(#sosyolab) select,
+  :where(#sosyolab) textarea {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+  }
+
+  #sosyolab :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 3px; }
+
+  #sosyolab svg { flex: none; }
+
+  .icon { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-sm { width: 15px; height: 15px; }
+  .icon-lg { width: 22px; height: 22px; }
+
+  /* ================= GİRİŞ ================= */
+
+  .auth { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 100vh; }
+
+  .auth-left {
+    background: var(--ink);
+    color: #E9EDF1;
+    padding: 56px 58px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .auth-figure {
+    position: absolute;
+    right: -90px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 440px;
+    height: 440px;
+    pointer-events: none;
+  }
+
+  .auth-figure line, .auth-figure circle { stroke: #2A3D4D; fill: none; stroke-width: 1; }
+  .auth-figure .node { fill: #D6A64A; stroke: none; }
+
+  .auth-brand { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; position: relative; }
+  .auth-brand span { color: #D6A64A; }
+
+  .auth-copy { position: relative; }
+
+  .auth-copy h1 {
+    font-family: var(--serif);
+    font-size: 44px;
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    margin: 0 0 16px;
+    color: #FFFFFF;
+    max-width: 14ch;
+  }
+
+  .auth-copy p { color: #94A3B1; margin: 0; max-width: 36ch; }
+
+  .auth-points {
+    position: relative;
+    display: grid;
+    gap: 1px;
+    background: #253645;
+    border: 1px solid #253645;
+    border-radius: var(--r);
+    overflow: hidden;
+    max-width: 380px;
+  }
+
+  .auth-points div {
+    background: var(--ink);
+    padding: 13px 16px;
+    font-size: 14px;
+    color: #94A3B1;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .auth-points svg { color: #D6A64A; }
+
+  .auth-right { display: grid; place-items: center; padding: 40px 28px; background: var(--ivory); }
+
+  .auth-card {
+    width: 100%;
+    max-width: 372px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 32px 26px;
+    box-shadow: 0 1px 2px rgba(15, 27, 38, 0.04), 0 10px 30px -22px rgba(15, 27, 38, 0.45);
+  }
+
+  .auth-card h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .auth-card p.lede { color: var(--text-2); font-size: 14px; margin: 0 0 22px; }
+
+  .field { display: grid; gap: 7px; margin-bottom: 16px; }
+  .field label { font-size: 13px; font-weight: 500; color: var(--text-2); }
+
+  .input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 12px;
+    font-size: 15px;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .input:hover { border-color: #C9C3B5; }
+  .input:focus { border-color: var(--ink-3); box-shadow: 0 0 0 3px rgba(34, 51, 63, 0.08); outline: none; }
+  .input::placeholder { color: var(--text-3); }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--ink);
+    color: #FFFFFF;
+    border: 1px solid var(--ink);
+    border-radius: var(--r);
+    padding: 11px 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+
+  .btn-primary:hover { background: var(--ink-3); }
+
+  .auth-foot { margin: 18px 0 0; font-size: 13px; color: var(--text-3); text-align: center; }
+
+  .auth-demo {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--ivory);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-2);
+    text-align: left;
+  }
+
+  .auth-dev { margin-top: 14px; border-top: 1px solid var(--border-soft); padding-top: 12px; font-size: 12.5px; color: var(--text-3); }
+  .auth-dev summary { cursor: pointer; }
+
+  .form-error {
+    background: #FBF0EC;
+    border: 1px solid #E6C7BC;
+    color: #8C3A22;
+    border-radius: var(--r);
+    padding: 9px 12px;
+    font-size: 13.5px;
+    margin: 0 0 16px;
+  }
+
+  /* ================= KABUK ================= */
+
+  .app { display: grid; grid-template-columns: 274px 1fr; min-height: 100vh; }
+
+  .sidebar {
+    background: var(--ink);
+    color: #E9EDF1;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .sb-brand { padding: 20px 20px 16px; border-bottom: 1px solid #22323F; }
+  .sb-brand b { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; display: block; }
+  .sb-brand b span { color: #D6A64A; }
+  .sb-brand small { display: block; color: #94A3B1; font-size: 12px; margin-top: 3px; line-height: 1.35; }
+
+  .sb-nav { flex: 1; overflow-y: auto; padding: 12px 10px 18px; }
+  .sb-nav::-webkit-scrollbar { width: 8px; }
+  .sb-nav::-webkit-scrollbar-thumb { background: #2A3B49; border-radius: 4px; }
+
+  .sb-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: none;
+    border: none;
+    border-radius: var(--r);
+    padding: 8px 10px;
+    text-align: left;
+    color: #94A3B1;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .sb-link:hover { background: #1B2A36; color: #E9EDF1; }
+  .sb-link[aria-current="true"] { background: #1E2E3B; color: #FFFFFF; font-weight: 500; }
+  .sb-link em { margin-left: auto; font-style: normal; font-size: 12.5px; opacity: 0.7; }
+
+  .sb-section { margin: 16px 0 4px; padding: 0 10px; font-size: 11.5px; letter-spacing: 0.07em; color: #6B7A88; font-weight: 600; }
+
+  .sb-term {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 9px 10px;
+    border-radius: var(--r);
+    color: #E9EDF1;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .sb-term:hover { background: #1B2A36; }
+  .chev { transition: transform 180ms ease; }
+  [aria-expanded="true"] > .chev { transform: rotate(90deg); }
+
+  .sb-class {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 7px 10px 7px 18px;
+    border-radius: var(--r);
+    color: #94A3B1;
+    font-size: 13.5px;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .sb-class:hover { background: #1B2A36; color: #E9EDF1; }
+  .sb-class[aria-expanded="true"] { color: #E9EDF1; font-weight: 500; }
+  .sb-class em { margin-left: auto; font-style: normal; color: #6B7A88; font-size: 12.5px; }
+
+  .sb-course {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    border-left: 2px solid #253645;
+    background: none;
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 6px 10px 6px 14px;
+    margin-left: 26px;
+    width: calc(100% - 26px);
+    color: #94A3B1;
+    font-size: 13.5px;
+    cursor: pointer;
+    text-align: left;
+    transition: color 150ms ease, border-color 150ms ease;
+  }
+
+  .sb-course:hover { color: #E9EDF1; border-left-color: #3C5163; }
+  .sb-course[aria-current="true"] { color: #FFFFFF; border-left-color: #D6A64A; font-weight: 500; }
+  .sb-course span { flex: 1; }
+  .sb-course em { font-style: normal; color: #6B7A88; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+  .sb-bos { margin: 4px 10px 8px 18px; padding: 10px 12px; border: 1px dashed #2A3B49; border-radius: var(--r); color: #94A3B1; font-size: 12.5px; line-height: 1.45; }
+
+  .sb-foot { border-top: 1px solid #22323F; padding: 14px 20px 16px; }
+
+  .contrib { font-size: 12.5px; color: #94A3B1; margin-bottom: 14px; }
+  .contrib b { display: block; color: #E9EDF1; font-size: 11.5px; letter-spacing: 0.06em; margin-bottom: 7px; font-weight: 600; }
+  .contrib-row { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+  .contrib-row span:last-child { color: #6B7A88; font-variant-numeric: tabular-nums; }
+
+  .sb-user { display: flex; align-items: center; gap: 10px; }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #22333F; color: #E9EDF1;
+    display: grid; place-items: center;
+    font-size: 12.5px; font-weight: 600; flex: none;
+  }
+
+  .sb-user div { min-width: 0; flex: 1; }
+  .sb-user strong { display: block; font-size: 13.5px; font-weight: 500; color: #FFFFFF; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-user small { color: #6B7A88; font-size: 12px; }
+
+  .icon-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--r);
+    padding: 6px;
+    color: #94A3B1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .icon-btn:hover { background: #1B2A36; color: #FFFFFF; }
+
+  /* ================= ÜST BAR ================= */
+
+  .main { min-width: 0; display: flex; flex-direction: column; }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(245, 243, 237, 0.93);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 11px 30px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .crumbs { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--text-2); min-width: 0; flex-wrap: wrap; }
+  .crumbs button { background: none; border: none; padding: 0; color: var(--text-2); cursor: pointer; }
+  .crumbs button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+  .crumbs .sep { color: var(--text-3); }
+  .crumbs .now { color: var(--text); font-weight: 500; }
+
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+  .search-trigger {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 8px 10px;
+    width: 272px;
+    color: var(--text-3);
+    font-size: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 150ms ease;
+  }
+
+  .search-trigger:hover { border-color: #C9C3B5; }
+  .search-trigger span { flex: 1; }
+
+  .kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; font-size: 11px; color: var(--text-3); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--ink);
+    color: #FFFFFF;
+    border: 1px solid var(--ink);
+    border-radius: var(--r);
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+
+  .btn:hover { background: var(--ink-3); }
+  .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--ivory-2); }
+
+  .menu-btn { display: none; color: var(--text-2); }
+  .menu-btn:hover { background: var(--ivory-2); color: var(--text); }
+
+  /* ================= İÇERİK ================= */
+
+  .content { padding: 28px 30px 60px; max-width: 1060px; width: 100%; }
+
+  .page-head { margin-bottom: 20px; }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--amber);
+    margin: 0 0 8px;
+  }
+
+  h1.page-title { font-family: var(--serif); font-size: 34px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.15; margin: 0; }
+  .page-sub { color: var(--text-2); font-size: 14.5px; margin: 8px 0 0; }
+
+  .stat-line {
+    display: flex; flex-wrap: wrap; gap: 18px;
+    margin-top: 16px; padding-top: 15px;
+    border-top: 1px solid var(--border);
+    font-size: 13.5px; color: var(--text-2);
+  }
+
+  .stat-line span { display: inline-flex; align-items: center; gap: 7px; }
+  .stat-line b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+
+  .course-instructor { margin: 8px 0 0; font-size: 14.5px; font-weight: 500; color: var(--text); }
+
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 0 0 20px; overflow-x: auto; }
+
+  .tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 9px 14px;
+    font-size: 14px;
+    color: var(--text-2);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 150ms ease, border-color 150ms ease;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--ink); }
+
+  .section { margin-top: 32px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+  .section-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  .section-head p { margin: 0; font-size: 13px; color: var(--text-3); }
+
+  .cats { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+
+  .cat {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 13.5px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+  }
+
+  .cat:hover { border-color: #C9C3B5; color: var(--text); }
+  .cat[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
+  .cat em { font-style: normal; font-variant-numeric: tabular-nums; opacity: 0.6; }
+
+  .list-tools {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    margin: 18px 0 4px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .inline-search { position: relative; flex: 1 1 220px; min-width: 180px; }
+  .inline-search > .icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); }
+  .inline-search .input { padding-left: 34px; }
+
+  .sort-wrap { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-2); }
+
+  .select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 9px 11px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* materyal listesi */
+
+  .mat-list { display: flex; flex-direction: column; }
+
+  .mat { display: flex; align-items: flex-start; gap: 6px; border-bottom: 1px solid var(--border-soft); }
+  .mat:first-child { border-top: 1px solid var(--border-soft); }
+
+  .mat-open {
+    flex: 1;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: none;
+    border: none;
+    padding: 14px 10px 14px 6px;
+    text-align: left;
+    cursor: pointer;
+    border-radius: var(--r);
+    min-width: 0;
+    transition: background 150ms ease;
+  }
+
+  .mat-open:hover { background: var(--ivory-2); }
+
+  .mat-icon {
+    width: 34px; height: 34px;
+    border-radius: var(--r);
+    display: grid; place-items: center;
+    background: var(--ivory-2);
+    color: var(--kind, var(--text-2));
+    flex: none; margin-top: 1px;
+  }
+
+  .mat-body { min-width: 0; flex: 1; }
+  .mat-title { display: block; font-size: 15.5px; font-weight: 500; color: var(--text); line-height: 1.35; }
+  .mat-sub { display: block; margin-top: 4px; font-size: 13px; color: var(--text-2); }
+  .mat-sub .kind { color: var(--kind, var(--text-2)); font-weight: 500; }
+  .mat-by { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text-3); }
+
+  .tag-new {
+    display: inline-block;
+    background: var(--amber-soft);
+    color: #7A5610;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: 1px;
+  }
+
+  .mat-fav {
+    background: none; border: none;
+    padding: 8px; margin: 12px 6px 0 0;
+    color: var(--text-3); cursor: pointer;
+    border-radius: var(--r);
+    transition: color 150ms ease, background 150ms ease;
+  }
+
+  .mat-fav:hover { background: var(--ivory-2); color: var(--text); }
+  .mat-fav[aria-pressed="true"] { color: var(--amber); }
+  .mat-fav[aria-pressed="true"] .icon { fill: var(--amber); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 12px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 15px 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 150ms ease, transform 150ms ease;
+  }
+
+  .card:hover { border-color: #C9C3B5; transform: translateY(-1px); }
+  .card .kod { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--amber); }
+  .card h3 { font-size: 15px; font-weight: 500; margin: 5px 0 0; }
+  .card p { margin: 8px 0 0; font-size: 13px; color: var(--text-2); }
+
+  .empty {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 40px 28px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .empty .icon-lg { color: var(--text-3); margin-bottom: 10px; }
+  .empty strong { display: block; font-weight: 600; font-size: 15px; margin-bottom: 5px; }
+  .empty p { margin: 0 0 16px; color: var(--text-2); font-size: 14px; }
+
+  .skeleton { display: grid; gap: 12px; padding: 30px; }
+  .sk {
+    height: 14px; border-radius: 4px;
+    background: linear-gradient(90deg, #EDEAE1 25%, #F4F2EC 50%, #EDEAE1 75%);
+    background-size: 400% 100%;
+    animation: sk 1.3s ease infinite;
+  }
+  @keyframes sk { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+  /* ================= KATMANLAR ================= */
+
+  .scrim { position: fixed; inset: 0; background: rgba(15, 27, 38, 0.38); z-index: 40; animation: fade 160ms ease; }
+  @keyframes fade { from { opacity: 0; } }
+
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(420px, 94vw);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 41;
+    padding: 20px 26px 26px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 13px;
+    animation: slide 180ms ease;
+  }
+
+  @keyframes slide { from { transform: translateX(16px); opacity: 0.6; } }
+
+  .drawer-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .kind-tag { display: inline-flex; align-items: center; gap: 8px; color: var(--kind, var(--text-2)); font-size: 13px; font-weight: 600; }
+
+  .x-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: var(--r); width: 30px; height: 30px;
+    display: grid; place-items: center;
+    color: var(--text-2); cursor: pointer;
+  }
+
+  .x-btn:hover { background: var(--ivory-2); color: var(--text); }
+
+  .drawer h2 { font-family: var(--serif); font-size: 23px; font-weight: 500; line-height: 1.22; margin: 2px 0 0; }
+  .drawer .note { color: var(--text-2); font-size: 14.5px; margin: 0; }
+
+  .facts { margin: 4px 0 0; font-size: 14px; }
+  .facts div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+  .facts span:first-child { color: var(--text-2); }
+  .facts span:last-child { text-align: right; font-weight: 500; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip-tag { background: var(--ivory-2); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; color: var(--text-2); }
+
+  .link-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--ink); color: #FFFFFF;
+    text-decoration: none; border-radius: var(--r);
+    padding: 11px 16px; font-weight: 500; font-size: 14.5px;
+  }
+
+  .link-btn:hover { background: var(--ink-3); }
+
+  .soft-note { border: 1px dashed var(--border); border-radius: var(--r); padding: 11px 14px; font-size: 13.5px; color: var(--text-2); text-align: center; margin: 0; }
+
+  .danger {
+    margin-top: auto;
+    background: none; border: 1px solid #E0C4BA;
+    color: #8C3A22; border-radius: var(--r);
+    padding: 9px 14px; cursor: pointer; font-size: 13.5px;
+  }
+
+  .danger:hover { background: #FBF0EC; }
+
+  .modal {
+    position: fixed; top: 7vh; left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, 94vw);
+    max-height: 86vh; overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    z-index: 41;
+    padding: 22px 26px 24px;
+    box-shadow: 0 24px 60px -30px rgba(15, 27, 38, 0.5);
+    animation: pop 160ms ease;
+  }
+
+  @keyframes pop { from { transform: translate(-50%, 6px); opacity: 0.7; } }
+
+  .modal h2 { font-size: 19px; font-weight: 600; margin: 0 0 3px; }
+  .modal p.lede { color: var(--text-2); font-size: 13.5px; margin: 0 0 18px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-2 .wide { grid-column: 1 / -1; }
+  .grid-2 .field { margin-bottom: 0; }
+
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-soft); }
+
+  .cmd {
+    position: fixed; top: 12vh; left: 50%;
+    transform: translateX(-50%);
+    width: min(580px, 94vw);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    z-index: 41; overflow: hidden;
+    box-shadow: 0 24px 60px -30px rgba(15, 27, 38, 0.5);
+  }
+
+  .cmd-input { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border-soft); color: var(--text-3); }
+  .cmd-input input { flex: 1; border: none; outline: none; font-size: 16px; background: none; color: var(--text); }
+  .cmd-results { max-height: 52vh; overflow-y: auto; padding: 8px; }
+  .cmd-group { font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--text-3); padding: 10px 10px 6px; margin: 0; }
+
+  .cmd-item {
+    display: flex; align-items: center; gap: 11px;
+    width: 100%; background: none; border: none;
+    border-radius: var(--r); padding: 9px 10px;
+    text-align: left; cursor: pointer;
+  }
+
+  .cmd-item:hover { background: var(--ivory-2); }
+  .cmd-item .icon { color: var(--text-3); }
+  .cmd-item div { min-width: 0; }
+  .cmd-item strong { display: block; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmd-item small { color: var(--text-3); font-size: 12.5px; }
+  .cmd-empty { padding: 26px; text-align: center; color: var(--text-2); font-size: 14px; margin: 0; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink); color: #FFFFFF;
+    padding: 10px 18px; border-radius: var(--r);
+    font-size: 14px; z-index: 60;
+  }
+
+  /* ================= RESPONSIVE ================= */
+
+  @media (max-width: 1020px) {
+    .auth { grid-template-columns: 1fr; }
+    .auth-left { padding: 40px 32px; }
+    .auth-figure { display: none; }
+    .auth-copy h1 { font-size: 34px; max-width: none; }
+  }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 282px; z-index: 50;
+      transform: translateX(-100%);
+      transition: transform 200ms ease;
+    }
+    .sidebar.open { transform: none; }
+    .menu-btn { display: inline-grid; }
+    .topbar { padding: 10px 16px; }
+    .content { padding: 20px 16px 56px; }
+    .search-trigger { width: auto; padding: 8px; }
+    .search-trigger span, .search-trigger .kbd { display: none; }
+    .btn .label { display: none; }
+    .btn { padding: 8px 10px; }
+    h1.page-title { font-size: 27px; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .crumbs { font-size: 12.5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #sosyolab *, #sosyolab *::before, #sosyolab *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+
+<div id="sosyolab"><div class="skeleton"><div class="sk" style="width:38%"></div><div class="sk" style="width:64%"></div><div class="sk" style="width:52%"></div></div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Yayına alırken false yapın: demo giriş bilgisi gizlenir. */
+  const DEV = false;
+
+  /* Örnek materyaller; gerçek kullanımda false yapın. */
+  const DEMO_VERI = true;
+
+  const root = document.getElementById("sosyolab");
+
+  /* ---------- ikonografi (Lucide çizgisi) ---------- */
+
+  const I = {
+    chevronRight: '<path d="m9 18 6-6-6-6"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    plus: '<path d="M5 12h14M12 5v14"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    logOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    layers: '<path d="m12 2 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
+    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
+    bookOpen: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+    presentation: '<path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/>',
+    playCircle: '<circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/>',
+    messageQuestion: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.6-4.6a2 2 0 0 0-2.8 0L3 21"/>',
+    clapper: '<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.4-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.4z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    fileText: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h6"/><path d="M16 13H8M16 17H8M10 9H8"/>',
+    alignLeft: '<path d="M21 6H3M15 12H3M17 18H3"/>',
+    clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/>',
+    library: '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>'
+  };
+
+  const svg = (d, cls) => '<svg class="icon ' + (cls || "") + '" viewBox="0 0 24 24" aria-hidden="true">' + d + "</svg>";
+
+  /* ---------- veri modeli ---------- */
+
+  const TURLER = {
+    "ders-anlatimi": { ad: "Ders Anlatımı", icon: I.bookOpen, renk: "#2C4E75", oncelik: 1 },
+    "slayt":         { ad: "Slayt", icon: I.presentation, renk: "#8A6113", oncelik: 1 },
+    "video":         { ad: "Video", icon: I.playCircle, renk: "#6E3340", oncelik: 1 },
+    "soru-cevap":    { ad: "Soru-Cevap", icon: I.messageQuestion, renk: "#2E5F5B", oncelik: 1 },
+    "ders-notu":     { ad: "Ders Notları", icon: I.fileText, renk: "#3C4A57", oncelik: 1 },
+    "gorsel":        { ad: "Görsel", icon: I.image, renk: "#2C4E75", oncelik: 2 },
+    "animasyon":     { ad: "Animasyon", icon: I.clapper, renk: "#6E3340", oncelik: 2 },
+    "ozet":          { ad: "Özetler", icon: I.alignLeft, renk: "#2E5F5B", oncelik: 2 },
+    "cikmis-soru":   { ad: "Çıkmış Sorular", icon: I.clipboard, renk: "#8A6113", oncelik: 2 },
+    "kaynak":        { ad: "Makale / Kaynak", icon: I.library, renk: "#3C4A57", oncelik: 2 }
+  };
+
+  /* ============================================================
+     VERİ KATMANI — ders programı
+     Çok dosyalı bir projede bu blok data/courses.js dosyasına taşınır.
+     Kaynak: ERÜ Edebiyat Fakültesi Sosyoloji Bölümü
+     2026–2027 Eğitim-Öğretim Yılı Güz Dönemi haftalık ders programı.
+     room ve schedule alanları şemada duruyor; kaynak listede yer
+     almadığı için null bırakıldı, veri gelince doldurulacak.
+     Öğretim elemanı adları bu herkese açık gösteri sürümünde nötr
+     etiketlerle (Öğretim Elemanı A, B, C ...) değiştirilmiştir. Gerçek
+     adlar yalnızca erişimi kısıtlı bir sürümde kullanılmalıdır.
+     ============================================================ */
+
+  const AKADEMIK_YIL = "2026-2027";
+
+  const DONEMLER = [
+    { id: "2026-2027-fall", academicYear: "2026-2027", semester: "fall", name: "Güz Dönemi", kisa: "2026–2027 Güz", available: true },
+    { id: "2026-2027-spring", academicYear: "2026-2027", semester: "spring", name: "Bahar Dönemi", kisa: "2026–2027 Bahar", available: false }
+  ];
+
+  const SINIFLAR = [1, 2, 3, 4];
+
+  const GUZ = "2026-2027-fall";
+
+  const DERSLER = [
+    /* --- 1. Sınıf --- */
+    { id: "sos101", code: "SOS 101", name: "Sosyolojiye Giriş I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 1, instructor: "Öğretim Elemanı A", courseType: null, room: null, schedule: null },
+    { id: "sos121", code: "SOS 121", name: "Psikolojiye Giriş I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 1, instructor: "Öğretim Elemanı B", courseType: null, room: null, schedule: null },
+    { id: "sos131", code: "SOS 131", name: "Felsefeye Giriş I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 1, instructor: "Öğretim Elemanı C", courseType: null, room: null, schedule: null },
+    { id: "sos141", code: "SOS 141", name: "Bilgi Tek. ve Uygulamaları", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 1, instructor: "Öğretim Elemanı D", courseType: null, room: null, schedule: null, kisaltilmis: true },
+    { id: "sos151", code: "SOS 151", name: "Mantık I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 1, instructor: "Öğretim Elemanı E", courseType: null, room: null, schedule: null },
+
+    /* --- 2. Sınıf --- */
+    { id: "sos201", code: "SOS 201", name: "Sosyal Sorumluluk Projesi", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 2, instructor: "Öğretim Elemanı F", courseType: "Uygulamalı", room: null, schedule: null },
+    { id: "sos231", code: "SOS 231", name: "Sosyolojik Düşünce Tarihi I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 2, instructor: "Öğretim Elemanı G", courseType: null, room: null, schedule: null },
+    { id: "sos241", code: "SOS 241", name: "Nicel Araştırma Yöntemleri", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 2, instructor: "Öğretim Elemanı H", courseType: null, room: null, schedule: null },
+    { id: "sos273", code: "SOS 273", name: "İnsan Ekolojisi", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 2, instructor: "Öğretim Elemanı I", courseType: null, room: null, schedule: null },
+    { id: "sos281", code: "SOS 281", name: "Türkiye'de Toplumsal Dön.", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 2, instructor: "Öğretim Elemanı H", courseType: null, room: null, schedule: null, kisaltilmis: true },
+    { id: "sos295", code: "SOS 295", name: "İleri İngilizce I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 2, instructor: "Öğretim Elemanı J", courseType: null, room: null, schedule: null },
+    { id: "sos297", code: "SOS 297", name: "Din ve Kadın Çalışmaları", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 2, instructor: "Öğretim Elemanı K", courseType: null, room: null, schedule: null },
+
+    /* --- 3. Sınıf --- */
+    { id: "sos301", code: "SOS 301", name: "Çağdaş Sosyoloji Teorileri I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 3, instructor: "Öğretim Elemanı G", courseType: null, room: null, schedule: null },
+    { id: "sos341", code: "SOS 341", name: "Akademik Araştırma ve Yazım Tek.", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 3, instructor: "Öğretim Elemanı F", courseType: null, room: null, schedule: null, kisaltilmis: true },
+    { id: "sos345", code: "SOS 345", name: "Gelişim Psikolojisi", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 3, instructor: "Öğretim Elemanı L", courseType: null, room: null, schedule: null },
+    { id: "sos361", code: "SOS 361", name: "Sinema Sosyolojisi", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 3, instructor: "Öğretim Elemanı A", courseType: null, room: null, schedule: null },
+    { id: "sos373", code: "SOS 373", name: "Yerel Politikalar ve Demokratik Katılım", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 3, instructor: "Öğretim Elemanı I", courseType: null, room: null, schedule: null },
+    { id: "sos377", code: "SOS 377", name: "Bilim ve Felsefe Tarihi", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 3, instructor: "Öğretim Elemanı C", courseType: null, room: null, schedule: null },
+    { id: "osd301", code: "OSD 301", name: "Bölüm Dışı Seçmeli Ders", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 3, instructor: "Öğretim Elemanı H", courseType: null, room: null, schedule: null },
+
+    /* --- 4. Sınıf --- */
+    { id: "sos401", code: "SOS 401", name: "Bitirme Tezi I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 4, instructor: "Bölüm Öğretim Üyeleri", courseType: "Uygulamalı", room: null, schedule: null },
+    { id: "sos403", code: "SOS 403", name: "Postmodernizm ve Sosyal Teori", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 4, instructor: "Öğretim Elemanı F", courseType: null, room: null, schedule: null },
+    { id: "sos411", code: "SOS 411", name: "Türk Sosyolojisi Tarihi I", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 4, instructor: "Öğretim Elemanı M", courseType: null, room: null, schedule: null },
+    { id: "sos485", code: "SOS 485", name: "Öğrenme Psikolojisi", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 4, instructor: "Öğretim Elemanı B", courseType: null, room: null, schedule: null },
+    { id: "sos489", code: "SOS 489", name: "Göç Çalışmaları", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 4, instructor: "Öğretim Elemanı N", courseType: null, room: null, schedule: null },
+    { id: "pfd401", code: "PFD 401", name: "Özel Öğretim Yöntemleri", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 4, instructor: "Öğretim Elemanı K", courseType: null, room: null, schedule: null }
+  ];
+
+  /* Aşağıdaki kayıtların tamamı kurgusaldır: hiçbiri gerçek bir ders
+     materyaline, dosyaya, bağlantıya ya da sınav evrakına karşılık gelmez.
+     Yalnızca arayüzü doldurmak içindir. Gerçek kullanıma geçerken
+     DEMO_VERI = false yapın, arşiv boş başlar. */
+  const SEED = [
+    { id: "m1", ders: "sos301", tur: "ders-notu", baslik: "Bourdieu: habitus, alan ve sermaye", hafta: 4, meta: "PDF · 18 sayfa", ekleyen: "Demo Öğrenci A", tarih: "2026-09-14", etiketler: ["Bourdieu", "Habitus", "Alan"], aciklama: "Örnek not; üç ana kavram örneklerle ayrılmış." },
+    { id: "m2", ders: "sos301", tur: "slayt", baslik: "Giddens ve yapılaşma kuramı", hafta: 6, meta: "PDF · 38 slayt", ekleyen: "Demo Öğrenci B", tarih: "2026-09-18", etiketler: ["Giddens", "Yapılaşma"], aciklama: "Örnek sunum kaydı; kuramın temel kavramlarını şemayla gösterir." },
+    { id: "m3", ders: "sos301", tur: "video", baslik: "Örnek anlatım: Foucault ve iktidar analitiği", hafta: 8, meta: "72 dk", ekleyen: "Demo Öğrenci C", tarih: "2026-09-21", etiketler: ["Foucault", "İktidar"], aciklama: "Örnek kayıt; gerçek bir ders kaydı değildir." },
+    { id: "m4", ders: "sos301", tur: "cikmis-soru", baslik: "Örnek soru seti — dönem tekrarı", hafta: null, meta: "PDF · 6 sayfa", ekleyen: "Demo Moderatör", tarih: "2026-09-08", etiketler: ["Tekrar"], aciklama: "Örnek içerik; gerçek sınav evrakı değildir." },
+    { id: "m5", ders: "sos301", tur: "soru-cevap", baslik: "Habitus ile alan arasındaki fark nedir?", hafta: 4, meta: "Tartışma · 11 yanıt", ekleyen: "Demo Öğrenci A", tarih: "2026-09-16", etiketler: ["Bourdieu"], aciklama: "Örnek tartışma başlığı." },
+
+    { id: "m6", ders: "sos241", tur: "ders-notu", baslik: "Örneklem türleri ve örneklem büyüklüğü", hafta: 3, meta: "PDF · 12 sayfa", ekleyen: "Demo Öğrenci A", tarih: "2026-09-11", etiketler: ["Örneklem", "Yöntem"], aciklama: "Olasılıklı ve olasılıksız örneklem ayrımı, hesaplama örnekleriyle." },
+    { id: "m7", ders: "sos241", tur: "video", baslik: "SPSS ile betimsel istatistik: ekran kaydı", hafta: 7, meta: "34 dk", ekleyen: "Demo Öğrenci C", tarih: "2026-09-19", etiketler: ["SPSS", "İstatistik"], aciklama: "Veri girişinden frekans tablolarına kadar adım adım." },
+    { id: "m8", ders: "sos241", tur: "ozet", baslik: "Ölçek türleri karşılaştırma tablosu", hafta: null, meta: "PDF · 3 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-20", etiketler: ["Ölçek", "Likert"], aciklama: "Nominal, ordinal, aralık ve oran ölçekleri tek tabloda." },
+    { id: "m9", ders: "sos241", tur: "cikmis-soru", baslik: "Örnek alıştırma soruları", hafta: null, meta: "PDF · 4 sayfa", ekleyen: "Demo Moderatör", tarih: "2026-09-22", etiketler: ["Tekrar"], aciklama: "Örnek içerik; gerçek sınav evrakı değildir." },
+
+    { id: "m10", ders: "sos231", tur: "ders-notu", baslik: "Durkheim: iş bölümü ve dayanışma", hafta: 3, meta: "PDF · 14 sayfa", ekleyen: "Demo Öğrenci A", tarih: "2026-09-11", etiketler: ["Durkheim"], aciklama: "Mekanik ve organik dayanışma ayrımı." },
+    { id: "m11", ders: "sos231", tur: "ozet", baslik: "Protestan Ahlakı — bölüm bölüm özet", hafta: 7, meta: "PDF · 7 sayfa", ekleyen: "Demo Öğrenci A", tarih: "2026-09-18", etiketler: ["Weber"], aciklama: "Kitabın her bölümü birer paragrafta." },
+    { id: "m12", ders: "sos231", tur: "slayt", baslik: "Comte'tan Simmel'e: düşünce haritası", hafta: 2, meta: "PDF · 22 slayt", ekleyen: "Demo Öğrenci B", tarih: "2026-09-09", etiketler: ["Comte", "Simmel"], aciklama: "Kuramcıların dönem ve etkileşim şeması." },
+
+    { id: "m13", ders: "sos489", tur: "ders-notu", baslik: "Köyden kente göç: 1950–1980 verileri", hafta: 4, meta: "PDF · 31 sayfa", ekleyen: "Demo Moderatör", tarih: "2026-09-13", etiketler: ["Göç", "Kentleşme"], aciklama: "Örnek veri derlemesi; tablolar tarih sırasına dizili." },
+    { id: "m14", ders: "sos489", tur: "kaynak", baslik: "Göç kuramları derlemesi (makale)", hafta: 6, meta: "PDF · 22 sayfa", ekleyen: "Demo Öğrenci A", tarih: "2026-09-19", etiketler: ["Kuram", "Göç"], aciklama: "İtme-çekme kuramından ağ kuramına kadar." },
+    { id: "m15", ders: "sos489", tur: "gorsel", baslik: "Göç haritaları ve akış şemaları", hafta: 5, meta: "9 görsel", ekleyen: "Demo Öğrenci C", tarih: "2026-09-17", etiketler: ["Harita"], aciklama: "Örnek harita ve şema seti." },
+
+    { id: "m16", ders: "sos401", tur: "kaynak", baslik: "Tez yazım kılavuzu ve biçim şablonu", hafta: 1, meta: "DOCX · 24 sayfa", ekleyen: "Demo Öğrenci A", tarih: "2026-09-05", etiketler: ["Tez", "Şablon"], aciklama: "Örnek biçim şablonu; kenar boşlukları ayarlı." },
+    { id: "m17", ders: "sos401", tur: "slayt", baslik: "Literatür taraması nasıl yapılır", hafta: 2, meta: "PDF · 21 slayt", ekleyen: "Demo Moderatör", tarih: "2026-09-07", etiketler: ["Literatür", "Tez"], aciklama: "Veritabanı seçimi, anahtar kelime ve not tutma düzeni." },
+
+    { id: "m18", ders: "sos341", tur: "ozet", baslik: "APA 7 kaynak gösterimi: hızlı başvuru", hafta: 3, meta: "PDF · 2 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-15", etiketler: ["APA", "Kaynakça"], aciklama: "Kitap, makale, tez ve internet kaynağı örnekleri." },
+    { id: "m19", ders: "sos361", tur: "video", baslik: "Film çözümlemesi örneği: mekân ve sınıf", hafta: 5, meta: "41 dk", ekleyen: "Demo Öğrenci C", tarih: "2026-09-16", etiketler: ["Çözümleme", "Mekân"], aciklama: "Örnek çözümleme kaydı." },
+    { id: "m20", ders: "sos101", tur: "ders-anlatimi", baslik: "Sosyolojik tahayyül nedir?", hafta: 1, meta: "26 dk", ekleyen: "Demo Öğrenci C", tarih: "2026-09-06", etiketler: ["Mills"], aciklama: "Örnek giriş anlatımı; yeni başlayanlar için." },
+    { id: "m21", ders: "sos101", tur: "kaynak", baslik: "Dönem okuma listesi", hafta: null, meta: "PDF · 2 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-04", etiketler: ["Okuma listesi"], aciklama: "Zorunlu ve önerilen okumalar ayrı ayrı." }
+  ];
+  /* Bu değer bir sır değildir: kaynak koda bakan herkes görebilir.
+     Yalnızca demoyu kazara açmamak için vardır, erişim güvenliği sağlamaz.
+     Bölümün gerçek davet kodu buraya yazılmamalıdır. */
+  const KOD = "DEMO2026";
+
+  /* Kurgusal demo kayıtları. Bu liste kaynak kodda açıkta durduğu için
+     buraya asla gerçek öğrenci numarası veya adı yazılmaz; gerçek kayıt
+     listesi ancak sunucu tarafında tutulabilir. */
+  const KAYITLI = {
+    "1000000001": { ad: "Demo Moderatör", rol: "moderatör", sinif: 4 },
+    "1000000002": { ad: "Demo Öğrenci A", rol: "öğrenci", sinif: 4 },
+    "1000000003": { ad: "Demo Öğrenci B", rol: "öğrenci", sinif: 3 },
+    "1000000004": { ad: "Demo Öğrenci C", rol: "öğrenci", sinif: 2 }
+  };
+
+  /* ---------- durum ---------- */
+
+  const state = {
+    hazir: false,
+    oturum: null,
+    materyaller: DEMO_VERI ? SEED.slice() : [],
+    favoriler: [],
+    sonGoruntulenen: [],
+    gorunum: "panel",
+    dersId: null,
+    kategori: "tumu",
+    dersArama: "",
+    sirala: "yeni",
+    kategoriHepsi: false,
+    nav: { donem: "2026-2027-fall", sinif: null },
+    sekme: "materyaller",
+    sidebarAcik: false,
+    katman: null,
+    secili: null,
+    silOnay: false,
+    aramaSorgu: "",
+    hata: null
+  };
+
+  /* ---------- yardımcılar ---------- */
+
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  const AYLAR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+  function tarihYaz(iso) {
+    const d = new Date(iso);
+    return d.getDate() + " " + AYLAR[d.getMonth()] + " " + d.getFullYear();
+  }
+
+  const gecenGun = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+
+  function goreceli(iso) {
+    const g = gecenGun(iso);
+    if (g <= 0) return "bugün";
+    if (g === 1) return "dün";
+    if (g < 7) return g + " gün önce";
+    if (g < 30) return Math.floor(g / 7) + " hafta önce";
+    return tarihYaz(iso);
+  }
+
+  const buHafta = (iso) => gecenGun(iso) <= 7;
+  const dersBul = (id) => DERSLER.find((d) => d.id === id);
+  const donemBul = (id) => DONEMLER.find((d) => d.id === id) || {};
+  const donemAd = (id) => donemBul(id).kisa || "";
+  const dersMateryal = (id) => state.materyaller.filter((m) => m.ders === id);
+
+  function bildir(mesaj) {
+    const el = document.createElement("div");
+    el.className = "toast";
+    el.setAttribute("role", "status");
+    el.textContent = mesaj;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2600);
+  }
+
+  /* ---------- kalıcı kayıt ---------- */
+
+  async function oku(anahtar) {
+    try {
+      const r = await window.storage.get(anahtar);
+      return r && r.value ? JSON.parse(r.value) : null;
+    } catch (e) { return null; }
+  }
+
+  async function yaz(anahtar, deger) {
+    try { await window.storage.set(anahtar, JSON.stringify(deger)); return true; }
+    catch (e) { return false; }
+  }
+
+  /* Depodan gelen veri bozuk, eksik ya da elle değiştirilmiş olabilir.
+     Tarih/başlık gibi alanların tipi beklenenden farklıysa sıralama ve
+     çizim adımları hata verir; bu yüzden yüklenen kayıtlar normalize
+     edilip geçersiz olanlar sessizce atılır. */
+  const metin = (v, varsayilan) => (typeof v === "string" ? v : (varsayilan || ""));
+
+  /* Materyal bağlantısı kullanıcıdan gelir. Yalnızca http ve https'e izin
+     verilir; javascript: ve data: gibi şemalar tıklandığında sayfa
+     bağlamında kod çalıştırabileceği için boş değere düşürülür. */
+  function guvenliUrl(v) {
+    if (typeof v !== "string") return "";
+    const t = v.trim();
+    if (!t) return "";
+    if (/^(https?:)?\/\//i.test(t) || /^[a-z][a-z0-9+.-]*:/i.test(t)) {
+      try {
+        const u = new URL(t, "https://ornek.invalid/");
+        return (u.protocol === "http:" || u.protocol === "https:") ? u.href : "";
+      } catch (e) { return ""; }
+    }
+    return "";
+  }
+
+  /* Kimlikler nitelik içine yazıldığı için biçimi sınırlanır. */
+  const gecerliKimlik = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+
+  function materyalNormalize(m) {
+    if (!m || typeof m !== "object") return null;
+    if (!gecerliKimlik(m.id)) return null;
+    if (typeof m.baslik !== "string" || !m.baslik.trim()) return null;
+    const tarih = /^\d{4}-\d{2}-\d{2}$/.test(m.tarih) ? m.tarih : new Date().toISOString().slice(0, 10);
+    const hafta = Number(m.hafta);
+    return {
+      id: m.id,
+      ders: dersBul(m.ders) ? m.ders : "",
+      tur: TURLER[m.tur] ? m.tur : "ders-notu",
+      baslik: m.baslik,
+      hafta: hafta >= 1 && hafta <= 30 ? hafta : null,
+      meta: metin(m.meta),
+      ekleyen: metin(m.ekleyen, "Bilinmiyor"),
+      tarih: tarih,
+      etiketler: Array.isArray(m.etiketler) ? m.etiketler.filter((t) => typeof t === "string").slice(0, 8) : [],
+      aciklama: metin(m.aciklama),
+      url: guvenliUrl(m.url)
+    };
+  }
+
+  function oturumNormalize(o) {
+    if (!o || typeof o !== "object") return null;
+    if (typeof o.no !== "string" || !/^\d{10}$/.test(o.no)) return null;
+    const sinif = Number(o.sinif);
+    return {
+      no: o.no,
+      ad: metin(o.ad, "No. " + o.no.slice(-4)),
+      rol: o.rol === "moderatör" ? "moderatör" : "öğrenci",
+      sinif: SINIFLAR.indexOf(sinif) > -1 ? sinif : null
+    };
+  }
+
+  const kimlikListesi = (v) =>
+    Array.isArray(v) ? v.filter((x) => typeof x === "string" && x).slice(0, 200) : [];
+
+  async function yukle() {
+    const [mat, oturum, fav, son] = await Promise.all([
+      oku("sosyolab:materyaller"), oku("sosyolab:oturum"),
+      oku("sosyolab:favoriler"), oku("sosyolab:son")
+    ]);
+
+    if (Array.isArray(mat)) {
+      const temiz = mat.map(materyalNormalize).filter(Boolean);
+      if (temiz.length) state.materyaller = temiz;
+    }
+
+    const o = oturumNormalize(oturum);
+    if (o) state.oturum = o;
+
+    state.favoriler = kimlikListesi(fav);
+    state.sonGoruntulenen = kimlikListesi(son);
+
+    if (state.oturum && state.oturum.sinif) state.nav.sinif = state.oturum.sinif;
+    state.hazir = true;
+  }
+
+  /* ---------- giriş ---------- */
+
+  function girisGorunumu() {
+    return `
+      <div class="auth">
+        <section class="auth-left">
+          <svg class="auth-figure" viewBox="0 0 400 400" aria-hidden="true">
+            <circle cx="200" cy="200" r="150"/><circle cx="200" cy="200" r="98"/><circle cx="200" cy="200" r="46"/>
+            <line x1="200" y1="50" x2="200" y2="350"/><line x1="50" y1="200" x2="350" y2="200"/>
+            <line x1="94" y1="94" x2="306" y2="306"/><line x1="306" y1="94" x2="94" y2="306"/>
+            <circle class="node" cx="200" cy="50" r="5"/><circle class="node" cx="306" cy="306" r="5"/>
+            <circle class="node" cx="102" cy="200" r="5"/><circle class="node" cx="200" cy="246" r="5"/>
+            <circle class="node" cx="271" cy="129" r="5"/>
+          </svg>
+          <div class="auth-brand">Sosyo<span>Lab</span></div>
+          <div class="auth-copy">
+            <h1>Sosyoloji Bölümünün ortak hafızası.</h1>
+            <p>Ders notları, sunumlar, videolar ve akademik kaynaklar tek bir bölüm arşivinde.</p>
+          </div>
+          <div class="auth-points">
+            <div>${svg(I.layers, "icon-sm")} Ders bazlı arşiv</div>
+            <div>${svg(I.users, "icon-sm")} Öğrenci katkıları</div>
+            <div>${svg(I.clock, "icon-sm")} Dönem boyunca güncellenen kaynaklar</div>
+          </div>
+        </section>
+
+        <section class="auth-right">
+          <div class="auth-card">
+            <h2>Arşive giriş</h2>
+            <p class="lede">Bölüm kayıt listesindeki numaranla giriş yap.</p>
+            ${state.hata ? `<p class="form-error" role="alert">${esc(state.hata)}</p>` : ""}
+            <div class="field">
+              <label for="no">Öğrenci numarası</label>
+              <input class="input" id="no" type="text" inputmode="numeric" maxlength="10" placeholder="10 haneli numara" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="kod">Davet kodu</label>
+              <input class="input" id="kod" type="password" placeholder="Bölüm temsilcisinden" autocomplete="off">
+            </div>
+            <button class="btn-primary" type="button" data-action="giris">Arşive Gir</button>
+            <p class="auth-foot">Yalnızca bölüm öğrencileri için.</p>
+            <p class="auth-demo">Gösteri sürümü: giriş kontrolü yalnızca tarayıcıda çalışır, gerçek erişim güvenliği sağlamaz. Eklenen materyaller yalnızca kendi tarayıcında saklanır.</p>
+            ${DEV ? '<details class="auth-dev"><summary>Geliştirme notu</summary><p style="margin:8px 0 0">Demo hesapları kaynak koddaki KAYITLI listesindedir.</p></details>' : ""}
+          </div>
+        </section>
+      </div>`;
+  }
+
+  async function girisDene() {
+    const no = (document.getElementById("no").value || "").replace(/\D/g, "");
+    const kod = (document.getElementById("kod").value || "").trim().toUpperCase();
+
+    if (no.length !== 10) return hataGoster("Öğrenci numarası 10 haneli olmalı.", "no");
+    if (kod !== KOD) return hataGoster("Davet kodu doğrulanamadı. Güncel kodu bölüm temsilcisinden alabilirsin.", "kod");
+
+    const kayit = KAYITLI[no];
+    state.oturum = {
+      no: no,
+      ad: kayit ? kayit.ad : "No. " + no.slice(-4),
+      rol: kayit ? kayit.rol : "öğrenci",
+      sinif: kayit ? kayit.sinif : null
+    };
+    state.hata = null;
+    if (state.oturum.sinif) state.nav.sinif = state.oturum.sinif;
+    await yaz("sosyolab:oturum", state.oturum);
+    ciz();
+  }
+
+  function hataGoster(mesaj, alan) {
+    state.hata = mesaj;
+    ciz();
+    const el = document.getElementById(alan);
+    if (el) el.focus();
+  }
+
+  /* ---------- kenar çubuğu ---------- */
+
+  function kenarCubugu() {
+    const tally = {};
+    state.materyaller.forEach((m) => { tally[m.ekleyen] = (tally[m.ekleyen] || 0) + 1; });
+    const enler = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const harf = state.oturum.ad.trim().charAt(0).toUpperCase();
+
+    return `
+      <aside class="sidebar${state.sidebarAcik ? " open" : ""}">
+        <div class="sb-brand">
+          <b>Sosyo<span>Lab</span></b>
+          <small>Erciyes Üniversitesi<br>Sosyoloji Bölümü</small>
+        </div>
+
+        <nav class="sb-nav" aria-label="Arşiv gezinmesi">
+          <button class="sb-link" data-action="panel" aria-current="${state.gorunum === "panel"}">
+            ${svg(I.inbox)} Bölüm Arşivi
+          </button>
+          <button class="sb-link" data-action="favoriler" aria-current="${state.gorunum === "favoriler"}">
+            ${svg(I.bookmark)} Kaydettiklerim${state.favoriler.length ? `<em>${state.favoriler.length}</em>` : ""}
+          </button>
+
+          <p class="sb-section">2026–2027 AKADEMİK YILI</p>
+          ${DONEMLER.map(donemBlogu).join("")}
+        </nav>
+
+        <div class="sb-foot">
+          <div class="contrib">
+            <b>TOPLULUĞA KATKI</b>
+            <div class="contrib-row"><span>Bu dönem</span><span>${state.materyaller.length} materyal</span></div>
+            <div class="contrib-row"><span>Katkı veren</span><span>${Object.keys(tally).length} öğrenci</span></div>
+            ${enler.map(([k, n]) => `<div class="contrib-row"><span>${esc(k)}</span><span>${n}</span></div>`).join("")}
+          </div>
+          <div class="sb-user">
+            <span class="avatar" aria-hidden="true">${esc(harf)}</span>
+            <div>
+              <strong>${esc(state.oturum.ad)}</strong>
+              <small>${esc(state.oturum.no)} · ${esc(state.oturum.rol)}</small>
+            </div>
+            <button class="icon-btn" data-action="cikis" aria-label="Çıkış yap" title="Çıkış yap">${svg(I.logOut, "icon-sm")}</button>
+          </div>
+        </div>
+      </aside>`;
+  }
+
+  function donemBlogu(d) {
+    const acik = state.nav.donem === d.id;
+    const govde = !acik ? ""
+      : d.available
+        ? SINIFLAR.map((s) => sinifBlogu(d.id, s)).join("")
+        : '<p class="sb-bos">Bahar dönemi ders programı henüz arşive eklenmedi.</p>';
+    return `
+      <button class="sb-term" data-action="donem" data-id="${d.id}" aria-expanded="${acik}">
+        ${svg(I.chevronRight, "icon-sm chev")} ${esc(d.name)}
+      </button>
+      ${govde}`;
+  }
+
+  function sinifBlogu(donem, sinif) {
+    const dersler = DERSLER.filter((c) => c.termId === donem && c.grade === sinif);
+    if (!dersler.length) return "";
+    const acik = state.nav.sinif === sinif;
+    return `
+      <button class="sb-class" data-action="sinif" data-sinif="${sinif}" aria-expanded="${acik}">
+        ${svg(I.chevronRight, "icon-sm chev")} ${sinif}. Sınıf <em>${dersler.length}</em>
+      </button>
+      ${acik ? dersler.map((c) => {
+        const n = dersMateryal(c.id).length;
+        return `<button class="sb-course" data-action="ders" data-id="${c.id}" aria-current="${state.dersId === c.id && state.gorunum === "ders"}">
+          <span>${esc(c.name)}</span>${n ? `<em>${n}</em>` : ""}
+        </button>`;
+      }).join("") : ""}`;
+  }
+
+  /* ---------- üst bar ---------- */
+
+  function ustBar() {
+    return `
+      <header class="topbar">
+        <button class="icon-btn menu-btn" data-action="menu" aria-label="Gezinmeyi aç">${svg(I.menu)}</button>
+        <nav class="crumbs" aria-label="Konum">${kirintilar()}</nav>
+        <div class="top-actions">
+          <button class="search-trigger" data-action="ara-ac">
+            ${svg(I.search, "icon-sm")}<span>Ders, konu veya materyal ara…</span><kbd class="kbd">⌘K</kbd>
+          </button>
+          <button class="btn" data-action="ekle-ac">${svg(I.plus, "icon-sm")}<span class="label">Materyal Ekle</span></button>
+        </div>
+      </header>`;
+  }
+
+  function kirintilar() {
+    if (state.gorunum === "favoriler") {
+      return '<button data-action="panel">Bölüm Arşivi</button><span class="sep">/</span><span class="now">Kaydettiklerim</span>';
+    }
+    if (state.gorunum === "ders") {
+      const c = dersBul(state.dersId);
+      if (c) {
+        return `<button data-action="panel">Bölüm Arşivi</button><span class="sep">/</span>
+          <button data-action="donem" data-id="${c.termId}">${esc(donemAd(c.termId))}</button><span class="sep">/</span>
+          <button data-action="sinif" data-sinif="${c.grade}">${c.grade}. Sınıf</button><span class="sep">/</span>
+          <span class="now">${esc(c.name)}</span>`;
+      }
+    }
+    return `<span class="now">Bölüm Arşivi</span><span class="sep">·</span><span>${esc(donemAd(state.nav.donem))}</span>`;
+  }
+
+  /* ---------- gösterge panosu ---------- */
+
+  function panelGorunumu() {
+    const sonEklenen = state.materyaller.slice().sort((a, b) => b.tarih.localeCompare(a.tarih)).slice(0, 6);
+
+    const dersSon = {};
+    state.materyaller.forEach((m) => {
+      if (!dersSon[m.ders] || m.tarih > dersSon[m.ders]) dersSon[m.ders] = m.tarih;
+    });
+    const guncelDersler = Object.entries(dersSon).sort((a, b) => b[1].localeCompare(a[1])).slice(0, 4);
+
+    const sonBakilan = state.sonGoruntulenen
+      .map((id) => state.materyaller.find((m) => m.id === id))
+      .filter(Boolean).slice(0, 3);
+
+    const katkiVeren = new Set(state.materyaller.map((m) => m.ekleyen)).size;
+
+    return `
+      <div class="content">
+        <div class="page-head">
+          <p class="eyebrow">${svg(I.layers, "icon-sm")} BÖLÜM ARŞİVİ</p>
+          <h1 class="page-title">2026–2027 Akademik Yılı</h1>
+          <p class="page-sub">Soldan dönem ve sınıf seçerek derse in, ya da yukarıdan ara.</p>
+          <div class="stat-line">
+            <span><b>${state.materyaller.length}</b> materyal</span>
+            <span><b>${DERSLER.length}</b> ders</span>
+            <span><b>${katkiVeren}</b> katkı veren öğrenci</span>
+          </div>
+        </div>
+
+        ${sonBakilan.length ? `
+        <section class="section">
+          <div class="section-head"><h2>Son görüntülediklerin</h2></div>
+          <div class="mat-list">${sonBakilan.map(materyalSatiri).join("")}</div>
+        </section>` : ""}
+
+        <section class="section">
+          <div class="section-head"><h2>Son eklenen materyaller</h2><p>Tüm derslerden</p></div>
+          <div class="mat-list">${sonEklenen.map(materyalSatiri).join("")}</div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><h2>Son güncellenen dersler</h2></div>
+          <div class="cards">
+            ${guncelDersler.map(([id, tarih]) => {
+              const c = dersBul(id);
+              if (!c) return "";
+              return `<button class="card" data-action="ders" data-id="${id}">
+                <span class="kod">${esc(c.code)}</span>
+                <h3>${esc(c.name)}</h3>
+                <p>${dersMateryal(id).length} materyal · ${esc(goreceli(tarih))} güncellendi</p>
+              </button>`;
+            }).join("")}
+          </div>
+        </section>
+      </div>`;
+  }
+
+  /* ---------- ders sayfası ---------- */
+
+  const SEKMELER = [
+    { id: "materyaller", ad: "Materyaller" },
+    { id: "haftalar", ad: "Haftalar" },
+    { id: "icerik", ad: "Ders İçeriği" },
+    { id: "soru-havuzu", ad: "Soru Havuzu" }
+  ];
+
+  function dersGorunumu() {
+    const c = dersBul(state.dersId);
+    if (!c) return panelGorunumu();
+
+    const hepsi = dersMateryal(c.id);
+    const katkiVeren = new Set(hepsi.map((m) => m.ekleyen)).size;
+    const sonTarih = hepsi.map((m) => m.tarih).sort().pop();
+
+    return `
+      <div class="content">
+        <div class="page-head">
+          <p class="eyebrow">${esc(c.code)}${c.courseType ? " · " + esc(c.courseType).toUpperCase() : ""}</p>
+          <h1 class="page-title">${esc(c.name)}</h1>
+          <p class="course-instructor">${esc(c.instructor)}</p>
+          <p class="page-sub">${esc(donemAd(c.termId))} · ${c.grade}. Sınıf</p>
+          <div class="stat-line">
+            <span>${svg(I.fileText, "icon-sm")} <b>${hepsi.length}</b> materyal</span>
+            ${katkiVeren ? `<span>${svg(I.users, "icon-sm")} <b>${katkiVeren}</b> katkıda bulunan</span>` : ""}
+            ${sonTarih ? `<span>${svg(I.clock, "icon-sm")} Son güncelleme ${esc(goreceli(sonTarih))}</span>` : ""}
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Ders bölümleri">
+          ${SEKMELER.map((t) => `
+            <button class="tab" role="tab" data-action="sekme" data-sekme="${t.id}" aria-selected="${state.sekme === t.id}">${esc(t.ad)}</button>`).join("")}
+        </div>
+
+        ${state.sekme === "haftalar" ? haftalarBolumu(hepsi)
+          : state.sekme === "icerik" ? bolumBos("Ders içeriği henüz eklenmedi.", "Haftalık izlence arşive girildiğinde burada görünecek.")
+          : state.sekme === "soru-havuzu" ? bolumBos("Soru havuzu henüz oluşturulmadı.", "Çıkmış sorular ve soru-cevap materyalleri toplandıkça burası dolacak.")
+          : materyallerBolumu(c, hepsi)}
+      </div>`;
+  }
+
+  function materyallerBolumu(c, hepsi) {
+    const sayim = {};
+    hepsi.forEach((m) => { sayim[m.tur] = (sayim[m.tur] || 0) + 1; });
+
+    const temel = Object.keys(TURLER).filter((t) => TURLER[t].oncelik === 1);
+    const gosterilecek = state.kategoriHepsi ? Object.keys(TURLER) : temel;
+
+    let liste = hepsi.filter((m) => state.kategori === "tumu" || m.tur === state.kategori);
+    const q = state.dersArama.toLowerCase().trim();
+    if (q) {
+      liste = liste.filter((m) =>
+        m.baslik.toLowerCase().includes(q) ||
+        (m.aciklama || "").toLowerCase().includes(q) ||
+        (m.etiketler || []).some((t) => t.toLowerCase().includes(q)));
+    }
+    liste = siralaListe(liste);
+
+    return `
+      <div class="cats" role="group" aria-label="İçerik kategorileri">
+        <button class="cat" data-action="kategori" data-tur="tumu" aria-pressed="${state.kategori === "tumu"}">Tümü <em>${hepsi.length}</em></button>
+        ${gosterilecek.map((t) => `
+          <button class="cat" data-action="kategori" data-tur="${t}" aria-pressed="${state.kategori === t}">
+            ${esc(TURLER[t].ad)} <em>${sayim[t] || 0}</em>
+          </button>`).join("")}
+        <button class="cat" data-action="kategori-hepsi">${state.kategoriHepsi ? "Daha az" : "Daha fazla"}</button>
+      </div>
+
+      <div class="list-tools">
+        <span class="inline-search">
+          ${svg(I.search, "icon-sm")}
+          <input class="input" id="dersArama" type="search" placeholder="Bu derste ara…" value="${esc(state.dersArama)}">
+        </span>
+        <span class="sort-wrap">
+          <label for="sirala">Sırala</label>
+          <select class="select" id="sirala">
+            <option value="yeni"${state.sirala === "yeni" ? " selected" : ""}>En yeni</option>
+            <option value="eski"${state.sirala === "eski" ? " selected" : ""}>En eski</option>
+            <option value="hafta"${state.sirala === "hafta" ? " selected" : ""}>Ders haftası</option>
+            <option value="baslik"${state.sirala === "baslik" ? " selected" : ""}>Başlığa göre</option>
+          </select>
+        </span>
+      </div>
+
+      ${liste.length
+        ? `<div class="mat-list">${liste.map(materyalSatiri).join("")}</div>`
+        : bosDurum()}`;
+  }
+
+  function haftalarBolumu(hepsi) {
+    if (!hepsi.length) return bosDurum();
+    const gruplar = {};
+    hepsi.forEach((m) => {
+      const k = m.hafta || 0;
+      (gruplar[k] = gruplar[k] || []).push(m);
+    });
+    const haftalar = Object.keys(gruplar).map(Number).sort((a, b) => (a || 99) - (b || 99));
+    return haftalar.map((h) => `
+      <section class="section">
+        <div class="section-head">
+          <h2>${h ? h + ". Hafta" : "Hafta belirtilmemiş"}</h2>
+          <p>${gruplar[h].length} materyal</p>
+        </div>
+        <div class="mat-list">${siralaListe(gruplar[h]).map(materyalSatiri).join("")}</div>
+      </section>`).join("");
+  }
+
+  function bolumBos(baslik, alt) {
+    return `
+      <div class="empty" style="margin-top:20px">
+        ${svg(I.layers, "icon-lg")}
+        <strong>${esc(baslik)}</strong>
+        <p>${esc(alt)}</p>
+      </div>`;
+  }
+
+
+  function siralaListe(liste) {
+    const l = liste.slice();
+    if (state.sirala === "yeni") l.sort((a, b) => b.tarih.localeCompare(a.tarih));
+    if (state.sirala === "eski") l.sort((a, b) => a.tarih.localeCompare(b.tarih));
+    if (state.sirala === "baslik") l.sort((a, b) => a.baslik.localeCompare(b.baslik, "tr"));
+    if (state.sirala === "hafta") l.sort((a, b) => (a.hafta || 99) - (b.hafta || 99));
+    return l;
+  }
+
+  function bosDurum() {
+    const tur = state.kategori === "tumu" ? null : TURLER[state.kategori];
+    const baslik = state.dersArama
+      ? "Aramanla eşleşen materyal yok."
+      : tur
+        ? "Bu ders için henüz " + tur.ad.toLowerCase() + " eklenmemiş."
+        : "Bu derste henüz materyal yok.";
+    return `
+      <div class="empty">
+        ${svg(I.inbox, "icon-lg")}
+        <strong>${esc(baslik)}</strong>
+        <p>İlk materyali sen ekle — bölümdeki herkes görsün.</p>
+        <button class="btn" data-action="ekle-ac">${svg(I.plus, "icon-sm")} Materyal Ekle</button>
+      </div>`;
+  }
+
+  function favoriGorunumu() {
+    const liste = siralaListe(state.materyaller.filter((m) => state.favoriler.indexOf(m.id) > -1));
+    return `
+      <div class="content">
+        <div class="page-head">
+          <p class="eyebrow">${svg(I.bookmark, "icon-sm")} KİŞİSEL</p>
+          <h1 class="page-title">Kaydettiklerim</h1>
+          <p class="page-sub">Yalnızca sana görünür; sınav döneminde hızlı erişim için.</p>
+        </div>
+        ${liste.length
+          ? `<div class="mat-list">${liste.map(materyalSatiri).join("")}</div>`
+          : `<div class="empty">${svg(I.bookmark, "icon-lg")}<strong>Henüz materyal kaydetmedin.</strong><p>Listelerdeki yer imi simgesine basarak materyalleri buraya ekleyebilirsin.</p></div>`}
+      </div>`;
+  }
+
+  /* ---------- materyal satırı ---------- */
+
+  function materyalSatiri(m) {
+    const t = TURLER[m.tur] || TURLER["ders-notu"];
+    const c = dersBul(m.ders);
+    const fav = state.favoriler.indexOf(m.id) > -1;
+    const alt = ['<span class="kind">' + esc(t.ad) + "</span>",
+      m.hafta ? m.hafta + ". Hafta" : null,
+      m.meta ? esc(m.meta) : null].filter(Boolean).join(" · ");
+
+    return `
+      <div class="mat" style="--kind:${t.renk}">
+        <button class="mat-open" data-action="materyal" data-id="${esc(m.id)}">
+          <span class="mat-icon">${svg(t.icon)}</span>
+          <span class="mat-body">
+            <span class="mat-title">${esc(m.baslik)}${buHafta(m.tarih) ? '<span class="tag-new">Bu hafta</span>' : ""}</span>
+            <span class="mat-sub">${alt}</span>
+            <span class="mat-by">${c ? esc(c.code) + " · " : ""}${esc(m.ekleyen)} ekledi · ${esc(tarihYaz(m.tarih))}</span>
+          </span>
+        </button>
+        <button class="mat-fav" data-action="favori" data-id="${esc(m.id)}" aria-pressed="${fav}"
+                aria-label="${fav ? "Kayıtlardan çıkar" : "Kaydet"}" title="${fav ? "Kayıtlardan çıkar" : "Kaydet"}">
+          ${svg(I.bookmark, "icon-sm")}
+        </button>
+      </div>`;
+  }
+
+  /* ---------- detay çekmecesi ---------- */
+
+  function cekmece() {
+    const m = state.materyaller.find((x) => x.id === state.secili);
+    if (!m) return "";
+    const t = TURLER[m.tur] || TURLER["ders-notu"];
+    const c = dersBul(m.ders);
+    const fav = state.favoriler.indexOf(m.id) > -1;
+    const silebilir = state.oturum.rol === "moderatör" || m.ekleyen === state.oturum.ad;
+
+    return `
+      <div class="scrim" data-action="kapat"></div>
+      <aside class="drawer" style="--kind:${t.renk}" role="dialog" aria-modal="true" aria-label="Materyal detayı">
+        <div class="drawer-top">
+          <span class="kind-tag">${svg(t.icon, "icon-sm")} ${esc(t.ad)}</span>
+          <span style="display:flex;gap:8px">
+            <button class="x-btn" data-action="favori" data-id="${esc(m.id)}" aria-pressed="${fav}"
+                    aria-label="Kaydet" style="${fav ? "color:var(--amber)" : ""}">${svg(I.bookmark, "icon-sm")}</button>
+            <button class="x-btn" data-action="kapat" aria-label="Kapat">${svg(I.x, "icon-sm")}</button>
+          </span>
+        </div>
+
+        <h2>${esc(m.baslik)}</h2>
+        ${m.aciklama ? `<p class="note">${esc(m.aciklama)}</p>` : ""}
+
+        <div class="facts">
+          <div><span>Ders</span><span>${c ? esc(c.code) + " · " + esc(c.name) : "—"}</span></div>
+          <div><span>Dönem</span><span>${c ? esc(donemAd(c.termId)) + " · " + c.grade + ". Sınıf" : "—"}</span></div>
+          ${m.hafta ? `<div><span>Hafta</span><span>${m.hafta}. Hafta</span></div>` : ""}
+          <div><span>Dosya</span><span>${esc(m.meta || "belirtilmemiş")}</span></div>
+          <div><span>Ekleyen</span><span>${esc(m.ekleyen)}</span></div>
+          <div><span>Eklenme</span><span>${esc(tarihYaz(m.tarih))}</span></div>
+        </div>
+
+        ${(m.etiketler || []).length ? `<div class="chips">${m.etiketler.map((e) => `<span class="chip-tag">#${esc(e)}</span>`).join("")}</div>` : ""}
+
+        ${m.url
+          ? `<a class="link-btn" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svg(I.external, "icon-sm")} Materyali aç</a>`
+          : '<p class="soft-note">Bu materyalin bağlantısı henüz girilmemiş.</p>'}
+
+        ${silebilir
+          ? `<button class="danger" data-action="sil">${state.silOnay ? "Emin misin? Silmek için tekrar bas" : "Arşivden kaldır"}</button>`
+          : ""}
+      </aside>`;
+  }
+
+  /* ---------- materyal ekleme ---------- */
+
+  function ekleKatmani() {
+    const mevcut = dersBul(state.dersId);
+    const secDonem = mevcut ? mevcut.termId : state.nav.donem;
+    const secSinif = mevcut ? mevcut.grade : (state.nav.sinif || state.oturum.sinif || 1);
+    const dersSecenek = DERSLER.filter((c) => c.termId === secDonem && c.grade === secSinif);
+
+    return `
+      <div class="scrim" data-action="kapat"></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Materyal ekle">
+        <h2>Materyal Ekle</h2>
+        <p class="lede">Eklediğin materyali bölümdeki herkes görebilir.</p>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="f-donem">Dönem</label>
+            <select class="input" id="f-donem" data-kapsam="1">
+              ${DONEMLER.filter((d) => d.available).map((d) => `<option value="${d.id}"${d.id === secDonem ? " selected" : ""}>${esc(d.kisa)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-sinif">Sınıf</label>
+            <select class="input" id="f-sinif" data-kapsam="1">
+              ${SINIFLAR.map((s) => `<option value="${s}"${s === secSinif ? " selected" : ""}>${s}. Sınıf</option>`).join("")}
+            </select>
+          </div>
+          <div class="field wide">
+            <label for="f-ders">Ders</label>
+            <select class="input" id="f-ders">
+              ${dersSecenek.length
+                ? dersSecenek.map((c) => `<option value="${c.id}"${c.id === state.dersId ? " selected" : ""}>${esc(c.code)} · ${esc(c.name)}</option>`).join("")
+                : '<option value="">Bu dönem ve sınıfta ders yok</option>'}
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-tur">İçerik türü</label>
+            <select class="input" id="f-tur">
+              ${Object.keys(TURLER).map((t) => `<option value="${t}">${esc(TURLER[t].ad)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-hafta">Ders haftası</label>
+            <select class="input" id="f-hafta">
+              <option value="">Belirtilmedi</option>
+              ${Array.from({ length: 14 }, (_, i) => `<option value="${i + 1}">${i + 1}. Hafta</option>`).join("")}
+            </select>
+          </div>
+          <div class="field wide">
+            <label for="f-baslik">Başlık</label>
+            <input class="input" id="f-baslik" placeholder="Örn. Bourdieu: Habitus, Alan ve Sermaye">
+          </div>
+          <div class="field wide">
+            <label for="f-aciklama">Açıklama</label>
+            <input class="input" id="f-aciklama" placeholder="Ne işe yarar, hangi konuyu kapsar?">
+          </div>
+          <div class="field">
+            <label for="f-url">Dosya bağlantısı</label>
+            <input class="input" id="f-url" placeholder="Drive, YouTube ya da dosya bağlantısı">
+          </div>
+          <div class="field">
+            <label for="f-meta">Dosya bilgisi</label>
+            <input class="input" id="f-meta" placeholder="PDF · 18 sayfa / 34 dk">
+          </div>
+          <div class="field wide">
+            <label for="f-etiket">Etiketler</label>
+            <input class="input" id="f-etiket" placeholder="Bourdieu, Habitus (virgülle ayır)">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-action="kapat">Vazgeç</button>
+          <button class="btn" data-action="kaydet">Arşive ekle</button>
+        </div>
+      </div>`;
+  }
+
+  async function materyalKaydet() {
+    const baslik = (document.getElementById("f-baslik").value || "").trim();
+    const ders = document.getElementById("f-ders").value;
+    if (!baslik) { document.getElementById("f-baslik").focus(); return bildir("Materyalin bir başlığa ihtiyacı var."); }
+    if (!ders) return bildir("Önce bir ders seç.");
+
+    const hafta = document.getElementById("f-hafta").value;
+    const etiket = (document.getElementById("f-etiket").value || "")
+      .split(",").map((s) => s.trim()).filter(Boolean).slice(0, 6);
+
+    state.materyaller.unshift({
+      id: "m" + Date.now(),
+      ders: ders,
+      tur: document.getElementById("f-tur").value,
+      baslik: baslik,
+      hafta: hafta ? parseInt(hafta, 10) : null,
+      meta: (document.getElementById("f-meta").value || "").trim(),
+      ekleyen: state.oturum.ad,
+      tarih: new Date().toISOString().slice(0, 10),
+      etiketler: etiket,
+      aciklama: (document.getElementById("f-aciklama").value || "").trim(),
+      url: guvenliUrl(document.getElementById("f-url").value)
+    });
+
+    const ok = await yaz("sosyolab:materyaller", state.materyaller);
+    const c = dersBul(ders);
+    state.katman = null;
+    state.dersId = ders;
+    state.gorunum = "ders";
+    state.kategori = "tumu";
+    state.dersArama = "";
+    state.sekme = "materyaller";
+    if (c) { state.nav.donem = c.termId; state.nav.sinif = c.grade; }
+    ciz();
+    bildir(ok ? "Materyal arşive eklendi." : "Eklendi, ancak kalıcı kayıt yapılamadı.");
+  }
+
+  /* ---------- genel arama ---------- */
+
+  function aramaKatmani() {
+    const q = state.aramaSorgu.toLowerCase().trim();
+    let dersSonuc = [], matSonuc = [];
+
+    if (q) {
+      dersSonuc = DERSLER.filter((c) =>
+        c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)).slice(0, 5);
+      matSonuc = state.materyaller.filter((m) =>
+        m.baslik.toLowerCase().includes(q) ||
+        (m.aciklama || "").toLowerCase().includes(q) ||
+        m.ekleyen.toLowerCase().includes(q) ||
+        (m.etiketler || []).some((t) => t.toLowerCase().includes(q))).slice(0, 8);
+    }
+
+    const bos = q && !dersSonuc.length && !matSonuc.length;
+
+    return `
+      <div class="scrim" data-action="kapat"></div>
+      <div class="cmd" role="dialog" aria-modal="true" aria-label="Arama">
+        <div class="cmd-input">
+          ${svg(I.search)}
+          <input id="aramaGiris" type="text" placeholder="Ders, konu veya materyal ara…" value="${esc(state.aramaSorgu)}" autocomplete="off">
+          <kbd class="kbd">esc</kbd>
+        </div>
+        <div class="cmd-results">
+          ${!q ? '<p class="cmd-empty">Ders adı, materyal başlığı, etiket ya da ekleyen kişi yazabilirsin.</p>' : ""}
+          ${dersSonuc.length ? '<p class="cmd-group">DERSLER</p>' + dersSonuc.map((c) => `
+            <button class="cmd-item" data-action="ders" data-id="${c.id}">
+              ${svg(I.bookOpen, "icon-sm")}
+              <div><strong>${esc(c.name)}</strong><small>${esc(c.code)} · ${esc(donemAd(c.termId))} · ${c.grade}. Sınıf</small></div>
+            </button>`).join("") : ""}
+          ${matSonuc.length ? '<p class="cmd-group">MATERYALLER</p>' + matSonuc.map((m) => {
+            const t = TURLER[m.tur] || TURLER["ders-notu"];
+            const c = dersBul(m.ders);
+            return `<button class="cmd-item" data-action="materyal" data-id="${esc(m.id)}">
+              ${svg(t.icon, "icon-sm")}
+              <div><strong>${esc(m.baslik)}</strong><small>${esc(t.ad)}${c ? " · " + esc(c.code) : ""} · ${esc(m.ekleyen)}</small></div>
+            </button>`;
+          }).join("") : ""}
+          ${bos ? '<p class="cmd-empty">Eşleşen sonuç yok. Başka bir kelime deneyebilirsin.</p>' : ""}
+        </div>
+      </div>`;
+  }
+
+  /* ---------- çizim ---------- */
+
+  function ciz() {
+    if (!state.hazir) {
+      root.innerHTML = '<div class="skeleton"><div class="sk" style="width:38%"></div><div class="sk" style="width:64%"></div><div class="sk" style="width:52%"></div></div>';
+      return;
+    }
+
+    if (!state.oturum) {
+      root.innerHTML = girisGorunumu();
+      return;
+    }
+
+    const govde = state.gorunum === "ders" ? dersGorunumu()
+      : state.gorunum === "favoriler" ? favoriGorunumu()
+      : panelGorunumu();
+
+    const katman = state.katman === "ekle" ? ekleKatmani()
+      : state.katman === "ara" ? aramaKatmani()
+      : state.secili ? cekmece()
+      : "";
+
+    root.innerHTML = `
+      <div class="app">
+        ${kenarCubugu()}
+        <div class="main">
+          ${ustBar()}
+          ${govde}
+        </div>
+      </div>
+      ${state.sidebarAcik ? '<div class="scrim" data-action="menu-kapat" style="z-index:45"></div>' : ""}
+      ${katman}`;
+
+    if (state.katman === "ara") {
+      const el = document.getElementById("aramaGiris");
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }
+  }
+
+  /* ---------- etkileşim ---------- */
+
+  async function favoriDegistir(id) {
+    const i = state.favoriler.indexOf(id);
+    if (i > -1) state.favoriler.splice(i, 1); else state.favoriler.unshift(id);
+    await yaz("sosyolab:favoriler", state.favoriler);
+    ciz();
+  }
+
+  async function materyalAc(id) {
+    state.secili = id;
+    state.silOnay = false;
+    state.katman = null;
+    state.sonGoruntulenen = [id].concat(state.sonGoruntulenen.filter((x) => x !== id)).slice(0, 8);
+    await yaz("sosyolab:son", state.sonGoruntulenen);
+    ciz();
+  }
+
+  function dersAc(id) {
+    const c = dersBul(id);
+    state.dersId = id;
+    state.gorunum = "ders";
+    state.kategori = "tumu";
+    state.dersArama = "";
+    state.sekme = "materyaller";
+    state.katman = null;
+    state.secili = null;
+    state.sidebarAcik = false;
+    if (c) { state.nav.donem = c.termId; state.nav.sinif = c.grade; }
+    ciz();
+  }
+
+  root.addEventListener("click", async (e) => {
+    const hedef = e.target.closest("[data-action]");
+    if (!hedef) return;
+    const action = hedef.dataset.action;
+
+    if (action === "giris") return girisDene();
+
+    if (action === "cikis") {
+      state.oturum = null;
+      state.secili = null;
+      state.katman = null;
+      state.gorunum = "panel";
+      state.dersId = null;
+      try { await window.storage.delete("sosyolab:oturum"); } catch (err) { /* yok sayılır */ }
+      return ciz();
+    }
+
+    if (action === "panel") { state.gorunum = "panel"; state.dersId = null; state.katman = null; state.sidebarAcik = false; return ciz(); }
+    if (action === "favoriler") { state.gorunum = "favoriler"; state.katman = null; state.sidebarAcik = false; return ciz(); }
+    if (action === "ders") return dersAc(hedef.dataset.id);
+
+    if (action === "donem") { state.nav.donem = hedef.dataset.id; state.katman = null; return ciz(); }
+
+    if (action === "sinif") {
+      const s = parseInt(hedef.dataset.sinif, 10);
+      state.nav.sinif = state.nav.sinif === s ? null : s;
+      state.katman = null;
+      return ciz();
+    }
+
+    if (action === "sekme") { state.sekme = hedef.dataset.sekme; return ciz(); }
+    if (action === "kategori") { state.kategori = hedef.dataset.tur; return ciz(); }
+    if (action === "kategori-hepsi") { state.kategoriHepsi = !state.kategoriHepsi; return ciz(); }
+    if (action === "materyal") return materyalAc(hedef.dataset.id);
+    if (action === "favori") return favoriDegistir(hedef.dataset.id);
+    if (action === "ekle-ac") { state.katman = "ekle"; state.secili = null; return ciz(); }
+    if (action === "ara-ac") { state.katman = "ara"; state.secili = null; return ciz(); }
+    if (action === "kaydet") return materyalKaydet();
+    if (action === "kapat") { state.katman = null; state.secili = null; state.silOnay = false; return ciz(); }
+    if (action === "menu") { state.sidebarAcik = true; return ciz(); }
+    if (action === "menu-kapat") { state.sidebarAcik = false; return ciz(); }
+
+    if (action === "sil") {
+      if (!state.silOnay) { state.silOnay = true; return ciz(); }
+      state.materyaller = state.materyaller.filter((m) => m.id !== state.secili);
+      state.favoriler = state.favoriler.filter((x) => x !== state.secili);
+      state.sonGoruntulenen = state.sonGoruntulenen.filter((x) => x !== state.secili);
+      await yaz("sosyolab:materyaller", state.materyaller);
+      await yaz("sosyolab:favoriler", state.favoriler);
+      state.secili = null;
+      state.silOnay = false;
+      ciz();
+      return bildir("Materyal arşivden kaldırıldı.");
+    }
+  });
+
+  root.addEventListener("input", (e) => {
+    if (e.target.id === "dersArama") {
+      state.dersArama = e.target.value;
+      const konum = e.target.selectionStart;
+      ciz();
+      const yeni = document.getElementById("dersArama");
+      if (yeni) { yeni.focus(); yeni.setSelectionRange(konum, konum); }
+      return;
+    }
+    if (e.target.id === "aramaGiris") { state.aramaSorgu = e.target.value; return ciz(); }
+    if (e.target.id === "sirala") { state.sirala = e.target.value; return ciz(); }
+    if (e.target.dataset && e.target.dataset.kapsam) {
+      const donem = document.getElementById("f-donem").value;
+      const sinif = parseInt(document.getElementById("f-sinif").value, 10);
+      const sec = document.getElementById("f-ders");
+      const dersler = DERSLER.filter((c) => c.termId === donem && c.grade === sinif);
+      sec.innerHTML = dersler.length
+        ? dersler.map((c) => `<option value="${c.id}">${esc(c.code)} · ${esc(c.name)}</option>`).join("")
+        : '<option value="">Bu dönem ve sınıfta ders yok</option>';
+    }
+  });
+
+  root.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.target.id === "no" || e.target.id === "kod")) {
+      e.preventDefault();
+      girisDene();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && state.oturum) {
+      e.preventDefault();
+      state.katman = state.katman === "ara" ? null : "ara";
+      state.secili = null;
+      ciz();
+    }
+    if (e.key === "Escape" && (state.katman || state.secili || state.sidebarAcik)) {
+      state.katman = null;
+      state.secili = null;
+      state.silOnay = false;
+      state.sidebarAcik = false;
+      ciz();
+    }
+  });
+
+  yukle().then(ciz, function () { state.hazir = true; ciz(); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+name: GitHub Pages'e yayınla
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Yayınlama için gereken en dar izin kümesi
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Aynı anda tek yayın çalışsın; devam eden yayın iptal edilmesin
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Pages yapılandırması
+        uses: actions/configure-pages@v5
+
+      - name: Yayın klasörünü hazırla
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site
+          # Yalnızca sitenin ihtiyaç duyduğu dosyalar kopyalanır.
+          # README.md ve workflow dosyaları depoda kalır, siteye çıkmaz.
+          cp index.html _site/index.html
+          cp 404.html   _site/404.html
+          cp .nojekyll  _site/.nojekyll
+          echo "Yayınlanacak içerik:"
+          ls -la _site
+
+      - name: Yayın klasörünü doğrula
+        run: |
+          set -euo pipefail
+          beklenen="404.html
+          .nojekyll
+          index.html"
+          gelen="$(cd _site && find . -mindepth 1 -printf '%P\n' | sort)"
+          if [ "$(printf '%s\n' "$beklenen" | sed 's/^ *//' | sort)" != "$gelen" ]; then
+            echo "Yayın klasörü beklenenden farklı:"
+            printf '%s\n' "$gelen"
+            exit 1
+          fi
+          echo "Yayın klasörü doğrulandı: yalnızca index.html, 404.html, .nojekyll"
+
+      - name: Siteyi paketle
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Pages'e dağıt
+        id: deployment
+        uses: actions/deploy-pages@v4
