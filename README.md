@@ -20,15 +20,38 @@ python3 -m http.server 8000
 
 ## Bu sürüm bir gösteri sürümüdür
 
+### İki giriş modu var, ikisi de gerçek kimlik doğrulama değildir
+
+Giriş ekranında iki mod bulunur:
+
+- **Kullanıcı Girişi** — öğrenci numarası + davet kodu. Arşivi görüntüler,
+  arama yapar, favori ekler.
+- **Admin Girişi** — kullanıcı adı + parola. Yukarıdakilerin tamamına ek olarak
+  materyal ekleyebilir ve silebilir.
+
+Demo bilgileri (kaynak kodda `KAYITLI`, `KOD` ve `ADMIN` sabitlerinde açıkça
+durur ve bilerek sahtedir; gerçek yönetici parolası kaynak koda hiç girmez):
+
+| Mod | Bilgi |
+|---|---|
+| Kullanıcı | `1000000001` / `DEMO2026` |
+| Admin (yalnızca demo modu) | `Sosyolog.35` / `DEMO-ADMIN-2026` |
+
 ### Giriş gerçek kimlik doğrulama değildir
 
-Öğrenci numarası ve davet kodu kontrolü tamamen tarayıcıda çalışır. Davet kodu
-JavaScript kaynağında düz metin olarak durur; sayfanın kaynağını görüntüleyen
-herkes okuyabilir. Sunucu tarafında doğrulama, oturum imzalama ya da yetki
-kontrolü yoktur. Bu yüzden:
+Her iki modun da kontrolü tamamen tarayıcıda çalışır. Davet kodu, admin
+kullanıcı adı ve admin parolası JavaScript kaynağında düz metin olarak durur;
+sayfanın kaynağını görüntüleyen herkes okuyabilir. Sunucu tarafında doğrulama,
+oturum imzalama ya da yetki kontrolü yoktur. Bu yüzden:
 
 - Buradaki giriş ekranı bir erişim kısıtı değil, bir gösterimdir.
-- Kaynak koddaki `KAYITLI` listesi ve `KOD` değeri kurgusaldır.
+- Kaynak koddaki `KAYITLI`, `KOD` ve `ADMIN` değerleri kurgusaldır ve sır
+  değildir.
+- Admin rolü yalnızca arayüzdeki yönetim denetimlerini açar. Tarayıcı
+  geliştirici araçlarından ya da `localStorage` elle düzenlenerek aşılabilir;
+  gerçek bir yetki sınırı değildir.
+- Roller: `ogrenci` (varsayılan) ve `admin`. Depodan gelen tanınmayan her rol
+  değeri en düşük yetkiye düşürülür, asla admin'e yükseltilmez.
 - **Gerçek öğrenci numarası, gerçek ad veya bölümün gerçek davet kodu bu
   depoya yazılmamalıdır.** Gerçek kayıt listesi ancak bir sunucuda tutulabilir.
 
@@ -60,6 +83,7 @@ açabilir. Görünürlük ayarıdır, erişim denetimi değildir.
 
 ## Gerçek kullanım için gerekenler
 
-- Sunucu tarafında kimlik doğrulama (ör. Supabase Auth) ve kayıtlı öğrenci listesi
+- Sunucu tarafında kimlik doğrulama (ör. Supabase Auth), kayıtlı öğrenci listesi
+  ve sunucuda doğrulanan admin rolü
 - Ortak veritabanı ve dosya depolama
 - Yetki kuralları (kimin ekleyebildiği, kimin silebildiği)

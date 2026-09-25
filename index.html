@@ -185,6 +185,28 @@
     box-shadow: 0 1px 2px rgba(15, 27, 38, 0.04), 0 10px 30px -22px rgba(15, 27, 38, 0.45);
   }
 
+  .auth-modes {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--border);
+    margin: -6px 0 20px;
+  }
+
+  .auth-mode {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 9px 6px;
+    font-size: 14px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease;
+  }
+
+  .auth-mode:hover { color: var(--text); }
+  .auth-mode[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--ink); }
+
   .auth-card h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
   .auth-card p.lede { color: var(--text-2); font-size: 14px; margin: 0 0 22px; }
 
@@ -975,11 +997,27 @@
      buraya asla gerçek öğrenci numarası veya adı yazılmaz; gerçek kayıt
      listesi ancak sunucu tarafında tutulabilir. */
   const KAYITLI = {
-    "1000000001": { ad: "Demo Moderatör", rol: "moderatör", sinif: 4 },
-    "1000000002": { ad: "Demo Öğrenci A", rol: "öğrenci", sinif: 4 },
-    "1000000003": { ad: "Demo Öğrenci B", rol: "öğrenci", sinif: 3 },
-    "1000000004": { ad: "Demo Öğrenci C", rol: "öğrenci", sinif: 2 }
+    "1000000001": { ad: "Demo Öğrenci A", sinif: 4 },
+    "1000000002": { ad: "Demo Öğrenci B", sinif: 4 },
+    "1000000003": { ad: "Demo Öğrenci C", sinif: 3 },
+    "1000000004": { ad: "Demo Öğrenci D", sinif: 2 }
   };
+
+  /* Demo yönetici girişi. Bu değerler kaynak kodda düz metin durur ve herkes
+     okuyabilir; bu yüzden buraya GERÇEK bir parola asla yazılmaz — değer
+     bilerek sahte tutulur. Gerçek yönetici parolası yalnızca Supabase Auth
+     içinde, elle oluşturulur ve kaynak koda hiç girmez.
+     DEMO_ADMIN_ETKIN = false yapıldığında demo yönetici girişi tamamen
+     kapanır; yönetim yalnızca Supabase oturumuyla açılır. */
+  const DEMO_ADMIN_ETKIN = true;
+  const ADMIN = { kullanici: "Sosyolog.35", parola: "DEMO-ADMIN-2026", ad: "Demo Yönetici" };
+
+  /* Uygulamada tanınan tek rol kümesi. */
+  const ROLLER = ["ogrenci", "admin"];
+  const ROL_ETIKET = { ogrenci: "Kullanıcı", admin: "Admin" };
+
+  /* Ayrıcalıklı işlemler için tek kontrol noktası. */
+  const yetkili = () => !!state.oturum && state.oturum.rol === "admin";
 
   /* ---------- durum ---------- */
 
@@ -1002,6 +1040,7 @@
     secili: null,
     silOnay: false,
     aramaSorgu: "",
+    mod: "kullanici",
     hata: null
   };
 
@@ -1103,14 +1142,31 @@
     };
   }
 
+  /* Depodan gelen rol asla yükseltilmez: yalnızca tanınan roller kabul edilir,
+     eski "moderatör" kayıtları admin'e taşınır, bilinmeyen her değer en düşük
+     yetkiye (ogrenci) düşer. */
+  function rolNormalize(v) {
+    if (v === "moderatör" || v === "moderator") return "admin";
+    return ROLLER.indexOf(v) > -1 ? v : "ogrenci";
+  }
+
   function oturumNormalize(o) {
     if (!o || typeof o !== "object") return null;
-    if (typeof o.no !== "string" || !/^\d{10}$/.test(o.no)) return null;
+    const rol = rolNormalize(o.rol);
     const sinif = Number(o.sinif);
+    if (rol === "admin") {
+      return {
+        no: typeof o.no === "string" && /^[A-Za-z0-9._-]{1,32}$/.test(o.no) ? o.no : ADMIN.kullanici,
+        ad: metin(o.ad, ADMIN.ad),
+        rol: "admin",
+        sinif: SINIFLAR.indexOf(sinif) > -1 ? sinif : null
+      };
+    }
+    if (typeof o.no !== "string" || !/^\d{10}$/.test(o.no)) return null;
     return {
       no: o.no,
       ad: metin(o.ad, "No. " + o.no.slice(-4)),
-      rol: o.rol === "moderatör" ? "moderatör" : "öğrenci",
+      rol: "ogrenci",
       sinif: SINIFLAR.indexOf(sinif) > -1 ? sinif : null
     };
   }
@@ -1167,6 +1223,24 @@
 
         <section class="auth-right">
           <div class="auth-card">
+            <div class="auth-modes" role="tablist" aria-label="Giriş türü">
+              <button class="auth-mode" role="tab" data-action="mod" data-mod="kullanici" aria-selected="${state.mod !== "admin"}">Kullanıcı Girişi</button>
+              <button class="auth-mode" role="tab" data-action="mod" data-mod="admin" aria-selected="${state.mod === "admin"}">Admin Girişi</button>
+            </div>
+            ${state.mod === "admin" ? `
+            <h2>Admin girişi</h2>
+            <p class="lede">Materyal ekleme ve silme yetkisi bu moddadır.</p>
+            ${state.hata ? `<p class="form-error" role="alert">${esc(state.hata)}</p>` : ""}
+            <div class="field">
+              <label for="kullanici">Kullanıcı adı</label>
+              <input class="input" id="kullanici" type="text" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="parola">Parola</label>
+              <input class="input" id="parola" type="password" autocomplete="off">
+            </div>
+            <button class="btn-primary" type="button" data-action="giris-admin">Admin Olarak Gir</button>
+            <p class="auth-foot">Arşivi yöneten bölüm temsilcileri için.</p>` : `
             <h2>Arşive giriş</h2>
             <p class="lede">Bölüm kayıt listesindeki numaranla giriş yap.</p>
             ${state.hata ? `<p class="form-error" role="alert">${esc(state.hata)}</p>` : ""}
@@ -1179,9 +1253,9 @@
               <input class="input" id="kod" type="password" placeholder="Bölüm temsilcisinden" autocomplete="off">
             </div>
             <button class="btn-primary" type="button" data-action="giris">Arşive Gir</button>
-            <p class="auth-foot">Yalnızca bölüm öğrencileri için.</p>
-            <p class="auth-demo">Gösteri sürümü: giriş kontrolü yalnızca tarayıcıda çalışır, gerçek erişim güvenliği sağlamaz. Eklenen materyaller yalnızca kendi tarayıcında saklanır.</p>
-            ${DEV ? '<details class="auth-dev"><summary>Geliştirme notu</summary><p style="margin:8px 0 0">Demo hesapları kaynak koddaki KAYITLI listesindedir.</p></details>' : ""}
+            <p class="auth-foot">Yalnızca bölüm öğrencileri için.</p>`}
+            <p class="auth-demo">Gösteri sürümü: her iki giriş de yalnızca tarayıcıda doğrulanır, gerçek erişim güvenliği sağlamaz. Eklenen materyaller yalnızca kendi tarayıcında saklanır.</p>
+            ${DEV ? '<details class="auth-dev"><summary>Geliştirme notu</summary><p style="margin:8px 0 0">Demo hesapları kaynak koddaki KAYITLI ve ADMIN sabitlerindedir.</p></details>' : ""}
           </div>
         </section>
       </div>`;
@@ -1195,14 +1269,35 @@
     if (kod !== KOD) return hataGoster("Davet kodu doğrulanamadı. Güncel kodu bölüm temsilcisinden alabilirsin.", "kod");
 
     const kayit = KAYITLI[no];
-    state.oturum = {
+    await oturumAc({
       no: no,
       ad: kayit ? kayit.ad : "No. " + no.slice(-4),
-      rol: kayit ? kayit.rol : "öğrenci",
+      rol: "ogrenci",
       sinif: kayit ? kayit.sinif : null
-    };
+    });
+  }
+
+  async function adminGirisDene() {
+    const kullanici = (document.getElementById("kullanici").value || "").trim();
+    const parola = document.getElementById("parola").value || "";
+
+    if (!DEMO_ADMIN_ETKIN) {
+      return hataGoster("Yönetici girişi yalnızca sunucu bağlıyken kullanılabilir.", "kullanici");
+    }
+    if (kullanici !== ADMIN.kullanici) return hataGoster("Kullanıcı adı doğrulanamadı.", "kullanici");
+    if (parola !== ADMIN.parola) return hataGoster("Parola doğrulanamadı.", "parola");
+
+    await oturumAc({ no: ADMIN.kullanici, ad: ADMIN.ad, rol: "admin", sinif: null });
+  }
+
+  async function oturumAc(oturum) {
+    state.oturum = oturumNormalize(oturum);
     state.hata = null;
-    if (state.oturum.sinif) state.nav.sinif = state.oturum.sinif;
+    state.gorunum = "panel";
+    state.dersId = null;
+    state.katman = null;
+    state.secili = null;
+    state.nav.sinif = state.oturum && state.oturum.sinif ? state.oturum.sinif : null;
     await yaz("sosyolab:oturum", state.oturum);
     ciz();
   }
@@ -1252,7 +1347,7 @@
             <span class="avatar" aria-hidden="true">${esc(harf)}</span>
             <div>
               <strong>${esc(state.oturum.ad)}</strong>
-              <small>${esc(state.oturum.no)} · ${esc(state.oturum.rol)}</small>
+              <small>${esc(state.oturum.no)} · ${esc(ROL_ETIKET[state.oturum.rol] || "Kullanıcı")}</small>
             </div>
             <button class="icon-btn" data-action="cikis" aria-label="Çıkış yap" title="Çıkış yap">${svg(I.logOut, "icon-sm")}</button>
           </div>
@@ -1300,7 +1395,7 @@
           <button class="search-trigger" data-action="ara-ac">
             ${svg(I.search, "icon-sm")}<span>Ders, konu veya materyal ara…</span><kbd class="kbd">⌘K</kbd>
           </button>
-          <button class="btn" data-action="ekle-ac">${svg(I.plus, "icon-sm")}<span class="label">Materyal Ekle</span></button>
+          ${yetkili() ? `<button class="btn" data-action="ekle-ac">${svg(I.plus, "icon-sm")}<span class="label">Materyal Ekle</span></button>` : ""}
         </div>
       </header>`;
   }
@@ -1518,8 +1613,10 @@
       <div class="empty">
         ${svg(I.inbox, "icon-lg")}
         <strong>${esc(baslik)}</strong>
-        <p>İlk materyali sen ekle — bölümdeki herkes görsün.</p>
-        <button class="btn" data-action="ekle-ac">${svg(I.plus, "icon-sm")} Materyal Ekle</button>
+        ${yetkili()
+          ? `<p>İlk materyali sen ekle — bölümdeki herkes görsün.</p>
+             <button class="btn" data-action="ekle-ac">${svg(I.plus, "icon-sm")} Materyal Ekle</button>`
+          : `<p>Bu bölüme materyal eklenince burada görünecek.</p>`}
       </div>`;
   }
 
@@ -1573,7 +1670,7 @@
     const t = TURLER[m.tur] || TURLER["ders-notu"];
     const c = dersBul(m.ders);
     const fav = state.favoriler.indexOf(m.id) > -1;
-    const silebilir = state.oturum.rol === "moderatör" || m.ekleyen === state.oturum.ad;
+    const silebilir = yetkili();
 
     return `
       <div class="scrim" data-action="kapat"></div>
@@ -1848,6 +1945,8 @@
     const action = hedef.dataset.action;
 
     if (action === "giris") return girisDene();
+    if (action === "giris-admin") return adminGirisDene();
+    if (action === "mod") { state.mod = hedef.dataset.mod; state.hata = null; return ciz(); }
 
     if (action === "cikis") {
       state.oturum = null;
@@ -1855,6 +1954,9 @@
       state.katman = null;
       state.gorunum = "panel";
       state.dersId = null;
+      state.mod = "kullanici";
+      state.hata = null;
+      state.nav.sinif = null;
       try { await window.storage.delete("sosyolab:oturum"); } catch (err) { /* yok sayılır */ }
       return ciz();
     }
@@ -1877,14 +1979,15 @@
     if (action === "kategori-hepsi") { state.kategoriHepsi = !state.kategoriHepsi; return ciz(); }
     if (action === "materyal") return materyalAc(hedef.dataset.id);
     if (action === "favori") return favoriDegistir(hedef.dataset.id);
-    if (action === "ekle-ac") { state.katman = "ekle"; state.secili = null; return ciz(); }
+    if (action === "ekle-ac") { if (!yetkili()) return bildir("Materyal eklemek için admin girişi gerekir."); state.katman = "ekle"; state.secili = null; return ciz(); }
     if (action === "ara-ac") { state.katman = "ara"; state.secili = null; return ciz(); }
-    if (action === "kaydet") return materyalKaydet();
+    if (action === "kaydet") { if (!yetkili()) return bildir("Materyal eklemek için admin girişi gerekir."); return materyalKaydet(); }
     if (action === "kapat") { state.katman = null; state.secili = null; state.silOnay = false; return ciz(); }
     if (action === "menu") { state.sidebarAcik = true; return ciz(); }
     if (action === "menu-kapat") { state.sidebarAcik = false; return ciz(); }
 
     if (action === "sil") {
+      if (!yetkili()) return bildir("Materyal silmek için admin girişi gerekir.");
       if (!state.silOnay) { state.silOnay = true; return ciz(); }
       state.materyaller = state.materyaller.filter((m) => m.id !== state.secili);
       state.favoriler = state.favoriler.filter((x) => x !== state.secili);
@@ -1921,10 +2024,9 @@
   });
 
   root.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && (e.target.id === "no" || e.target.id === "kod")) {
-      e.preventDefault();
-      girisDene();
-    }
+    if (e.key !== "Enter") return;
+    if (e.target.id === "no" || e.target.id === "kod") { e.preventDefault(); girisDene(); }
+    if (e.target.id === "kullanici" || e.target.id === "parola") { e.preventDefault(); adminGirisDene(); }
   });
 
   document.addEventListener("keydown", (e) => {
