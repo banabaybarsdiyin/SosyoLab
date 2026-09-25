@@ -10,6 +10,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230F1B26'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='34' font-weight='700' text-anchor='middle' fill='%23D6A64A'%3ES%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -530,6 +532,81 @@
   .tab:hover { color: var(--text); }
   .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--ink); }
 
+  .cta {
+    margin-top: 28px;
+    background: var(--ink);
+    color: #E9EDF1;
+    border-radius: 10px;
+    padding: 26px 28px;
+  }
+
+  .cta h2 {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    margin: 0;
+    color: #FFFFFF;
+  }
+
+  .cta-slogan { margin: 8px 0 0; font-size: 15px; font-weight: 600; color: #D6A64A; }
+  .cta-metin { margin: 10px 0 0; font-size: 14.5px; color: #94A3B1; max-width: 62ch; }
+  .cta-not { margin: 12px 0 0; font-size: 12.5px; color: #6B7A88; }
+
+  .cta-btn {
+    margin-top: 18px;
+    background: #D6A64A;
+    border-color: #D6A64A;
+    color: #17110A;
+    font-weight: 600;
+  }
+
+  .cta-btn:hover { background: #E3B45C; color: #17110A; }
+
+  .rozet {
+    margin-left: auto;
+    background: #D6A64A;
+    color: #17110A;
+    border-radius: 999px;
+    min-width: 20px;
+    padding: 1px 7px;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .durum {
+    display: inline-block;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .durum-pending  { background: var(--amber-soft); color: #7A5610; }
+  .durum-approved { background: #DDEBE4; color: #1D5B45; }
+  .durum-rejected { background: #F6E0D8; color: #8C3A22; }
+
+  .inceleme {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+
+  .inceleme h3 { font-size: 15.5px; font-weight: 600; margin: 0 0 4px; }
+  .inceleme .alt { font-size: 13px; color: var(--text-2); margin: 0 0 4px; }
+  .inceleme .aciklama { font-size: 14px; color: var(--text); margin: 8px 0 0; }
+  .inceleme-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+  .btn-onay { background: #1D5B45; border-color: #1D5B45; }
+  .btn-onay:hover { background: #24704F; }
+  .btn-ret { background: var(--surface); color: #8C3A22; border-color: #E0C4BA; }
+  .btn-ret:hover { background: #FBF0EC; color: #8C3A22; }
+
+  .sebep { margin-top: 12px; display: grid; gap: 8px; }
+
   .section { margin-top: 32px; }
   .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
   .section-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
@@ -1003,12 +1080,13 @@
     "1000000004": { ad: "Demo Öğrenci D", sinif: 2 }
   };
 
-  /* Demo yönetici girişi. Bu değerler kaynak kodda düz metin durur ve herkes
-     okuyabilir; bu yüzden buraya GERÇEK bir parola asla yazılmaz — değer
-     bilerek sahte tutulur. Gerçek yönetici parolası yalnızca Supabase Auth
-     içinde, elle oluşturulur ve kaynak koda hiç girmez.
-     DEMO_ADMIN_ETKIN = false yapıldığında demo yönetici girişi tamamen
-     kapanır; yönetim yalnızca Supabase oturumuyla açılır. */
+  /* YALNIZCA demo modunda (Supabase yapılandırılmamışken) kullanılır.
+     Kaynak kodda düz metin durur, herkes okuyabilir; bu yüzden değer bilerek
+     sahtedir ve gerçek bir parola buraya asla yazılmaz. Supabase
+     yapılandırıldığında bu sabitler hiç kullanılmaz: doğrulama Supabase
+     Auth'ta yapılır, rol sunucudaki profil satırından gelir.
+     Supabase kurulduktan sonra DEMO_ADMIN_ETKIN = false yapılarak demo
+     yönetici girişi tamamen kapatılmalıdır. */
   const DEMO_ADMIN_ETKIN = true;
   const ADMIN = { kullanici: "Sosyolog.35", parola: "DEMO-ADMIN-2026", ad: "Demo Yönetici" };
 
@@ -1041,6 +1119,12 @@
     silOnay: false,
     aramaSorgu: "",
     mod: "kullanici",
+    gonderiler: [],
+    bekleyen: [],
+    paylasHata: null,
+    paylasGonderiliyor: false,
+    onayHata: null,
+    reddedilen: null,
     hata: null
   };
 
@@ -1192,7 +1276,293 @@
     state.sonGoruntulenen = kimlikListesi(son);
 
     if (state.oturum && state.oturum.sinif) state.nav.sinif = state.oturum.sinif;
+
+    if (bulutBaslat()) {
+      /* Paylaşılan materyal artık localStorage'da değil: onaylı kayıtlar
+         sunucudan gelir. Yerel depo yalnızca tercih ve arayüz durumu tutar. */
+      try {
+        const oturum = await BULUT.istemci.auth.getSession();
+        if (oturum.data && oturum.data.session) {
+          BULUT.uid = oturum.data.session.user.id;
+          const pr = await BULUT.istemci.from("profiles")
+            .select("id, role, display_name, student_number").eq("id", BULUT.uid).maybeSingle();
+          if (!pr.error && pr.data) BULUT.profil = pr.data;
+        }
+        const onayli = await onayliMateryalleriGetir();
+        if (onayli) state.materyaller = onayli;
+        if (state.oturum && BULUT.profil) {
+          state.oturum.rol = BULUT.profil.role === "admin" ? "admin" : "ogrenci";
+        }
+      } catch (e) { BULUT.hata = "Sunucudan materyal alınamadı."; }
+    }
+
     state.hazir = true;
+  }
+
+  async function bulutYenile() {
+    if (!BULUT.etkin) return;
+    const onayli = await onayliMateryalleriGetir();
+    if (onayli) state.materyaller = onayli;
+    state.gonderiler = await gonderilerimiGetir();
+    state.bekleyen = yetkili() ? await bekleyenleriGetir() : [];
+  }
+
+  /* ============================================================
+     BULUT KATMANI — Supabase
+     Yapılandırma boşsa uygulama demo modunda çalışır: örnek materyaller
+     gösterilir, gönderim ve onay akışı kapalıdır. Yetkilendirmenin gerçek
+     sınırı veritabanındaki RLS politikalarıdır; buradaki kontroller
+     yalnızca arayüzü düzenler.
+     ============================================================ */
+
+  const BULUT = { etkin: false, istemci: null, uid: null, profil: null, hata: null };
+
+  function bulutYapilandirmasi() {
+    const c = window.SOSYOLAB_CONFIG || {};
+    const url = typeof c.SUPABASE_URL === "string" ? c.SUPABASE_URL.trim() : "";
+    const key = typeof c.SUPABASE_ANON_KEY === "string" ? c.SUPABASE_ANON_KEY.trim() : "";
+    if (!/^https:\/\/[^\s]+$/.test(url) || key.length < 20) return null;
+    return { url: url, key: key };
+  }
+
+  function bulutBaslat() {
+    const c = bulutYapilandirmasi();
+    if (!c) return false;
+    const lib = window.supabase;
+    if (!lib || typeof lib.createClient !== "function") return false;
+    try {
+      BULUT.istemci = lib.createClient(c.url, c.key, { auth: { persistSession: true } });
+      BULUT.etkin = true;
+    } catch (e) {
+      BULUT.etkin = false;
+      BULUT.hata = "Supabase istemcisi başlatılamadı.";
+    }
+    return BULUT.etkin;
+  }
+
+  /* ---------- dosya kuralları ---------- */
+
+  const MAKS_DOSYA = 25 * 1024 * 1024;
+
+  const IZINLI_DOSYA = {
+    pdf:  ["application/pdf"],
+    docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    pptx: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+    jpg:  ["image/jpeg"],
+    jpeg: ["image/jpeg"],
+    png:  ["image/png"]
+  };
+
+  /* Çalıştırılabilir ve tarayıcıda kod yürütebilen biçimler açıkça reddedilir. */
+  const YASAKLI_UZANTI = ["exe", "js", "mjs", "html", "htm", "svg", "bat", "cmd", "com",
+    "ps1", "sh", "zip", "rar", "7z", "jar", "msi", "scr", "php", "vbs", "dll", "apk"];
+
+  const PAYLASIM_TURLERI = [
+    { id: "ders-notu",       ad: "Ders Notu",      tur: "ders-notu" },
+    { id: "sunum",           ad: "Sunum",          tur: "slayt" },
+    { id: "makale",          ad: "Makale",         tur: "kaynak" },
+    { id: "sinav-calismasi", ad: "Sınav Çalışması", tur: "cikmis-soru" },
+    { id: "ozet",            ad: "Özet",           tur: "ozet" },
+    { id: "diger",           ad: "Diğer",          tur: "ders-notu" }
+  ];
+
+  const DURUM_ETIKET = { pending: "İnceleniyor", approved: "Onaylandı", rejected: "Reddedildi" };
+
+  function uzantiAl(ad) {
+    const t = String(ad || "").toLowerCase();
+    const i = t.lastIndexOf(".");
+    return i > -1 ? t.slice(i + 1).replace(/[^a-z0-9]/g, "") : "";
+  }
+
+  /* Orijinal dosya adına güvenilmez: yalnızca görüntülemek için saklanır,
+     yol ayırıcıları ve kontrol karakterleri temizlenir. */
+  function gosterimAdi(ad) {
+    return String(ad || "dosya")
+      .replace(/[\\/\u0000-\u001f]/g, " ")   /* yol ayırıcı ve kontrol karakteri */
+      .replace(/\.{2,}/g, ".")                /* ".." dizileri */
+      .replace(/^[.\s]+/, "")                 /* baştaki nokta ve boşluklar */
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120) || "dosya";
+  }
+
+  function rastgeleKimlik() {
+    try {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    } catch (e) { /* yok sayılır */ }
+    return "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
+
+  /* Depodaki dosya adı her zaman sunucu tarafında üretilmiş gibi kurulur:
+     <kullanıcı uid>/<rastgele>.<uzantı> */
+  function depoYolu(uid, uzanti) {
+    return String(uid) + "/" + rastgeleKimlik() + "." + uzanti;
+  }
+
+  function dosyaDogrula(dosya) {
+    if (!dosya) return { ok: false, hata: "Bir dosya seçmelisin." };
+    const uz = uzantiAl(dosya.name);
+    if (!uz) return { ok: false, hata: "Dosyanın uzantısı okunamadı." };
+    if (YASAKLI_UZANTI.indexOf(uz) > -1) {
+      return { ok: false, hata: "." + uz + " dosyaları güvenlik nedeniyle kabul edilmiyor." };
+    }
+    if (!IZINLI_DOSYA[uz]) {
+      return { ok: false, hata: "Yalnızca PDF, DOCX, PPTX, JPG ve PNG kabul ediliyor." };
+    }
+    const mime = String(dosya.type || "").toLowerCase();
+    if (mime && IZINLI_DOSYA[uz].indexOf(mime) === -1) {
+      return { ok: false, hata: "Dosya türü uzantısıyla uyuşmuyor." };
+    }
+    if (typeof dosya.size === "number" && dosya.size > MAKS_DOSYA) {
+      return { ok: false, hata: "Dosya 25 MB sınırını aşıyor." };
+    }
+    if (typeof dosya.size === "number" && dosya.size === 0) {
+      return { ok: false, hata: "Dosya boş görünüyor." };
+    }
+    return { ok: true, uzanti: uz, mime: mime || IZINLI_DOSYA[uz][0] };
+  }
+
+  /* ---------- oturum ---------- */
+
+  async function bulutOturumAc(rolIstegi, kimlik) {
+    if (!BULUT.etkin) return { ok: false, hata: "Bulut yapılandırılmamış." };
+    const c = BULUT.istemci;
+    try {
+      if (rolIstegi === "admin") {
+        const eposta = kimlik.kullanici.indexOf("@") > -1
+          ? kimlik.kullanici
+          : kimlik.kullanici.toLowerCase() + "@sosyolab.local";
+        const r = await c.auth.signInWithPassword({ email: eposta, password: kimlik.parola });
+        if (r.error) return { ok: false, hata: "Kullanıcı adı ya da parola doğrulanamadı." };
+        BULUT.uid = r.data.user.id;
+      } else {
+        const mevcut = await c.auth.getSession();
+        if (mevcut.data && mevcut.data.session) {
+          BULUT.uid = mevcut.data.session.user.id;
+        } else {
+          const r = await c.auth.signInAnonymously();
+          if (r.error) return { ok: false, hata: "Oturum açılamadı." };
+          BULUT.uid = r.data.user.id;
+        }
+      }
+      const p = await c.from("profiles").select("id, role, display_name, student_number")
+        .eq("id", BULUT.uid).maybeSingle();
+      if (!p.error && p.data) {
+        BULUT.profil = p.data;
+      } else {
+        const yeni = {
+          id: BULUT.uid,
+          display_name: kimlik.ad || null,
+          student_number: kimlik.no && /^\d{10}$/.test(kimlik.no) ? kimlik.no : null
+        };
+        const ins = await c.from("profiles").insert(yeni).select().maybeSingle();
+        BULUT.profil = (!ins.error && ins.data) ? ins.data : { id: BULUT.uid, role: "user" };
+      }
+      /* Rol sunucudan gelir; tarayıcıdaki seçim rolü belirlemez. */
+      return { ok: true, rol: BULUT.profil.role === "admin" ? "admin" : "ogrenci" };
+    } catch (e) {
+      return { ok: false, hata: "Bağlantı kurulamadı." };
+    }
+  }
+
+  async function bulutCikis() {
+    if (!BULUT.etkin) return;
+    try { await BULUT.istemci.auth.signOut(); } catch (e) { /* yok sayılır */ }
+    BULUT.uid = null; BULUT.profil = null;
+  }
+
+  /* ---------- materyal verisi ---------- */
+
+  function bulutSatiriCevir(r) {
+    const tur = PAYLASIM_TURLERI.filter(function (t) { return t.id === r.material_type; })[0];
+    return {
+      id: typeof r.id === "string" ? r.id.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64) : rastgeleKimlik(),
+      ders: r.course_id,
+      tur: tur ? tur.tur : "ders-notu",
+      baslik: r.title,
+      hafta: null,
+      meta: gosterimAdi(r.file_name),
+      ekleyen: (r.profiles && r.profiles.display_name) || "Bölüm öğrencisi",
+      tarih: String(r.created_at || "").slice(0, 10),
+      etiketler: [],
+      aciklama: r.description || "",
+      url: "",
+      depoYolu: r.file_path,
+      durum: r.status
+    };
+  }
+
+  async function onayliMateryalleriGetir() {
+    if (!BULUT.etkin) return null;
+    const r = await BULUT.istemci.from("materials")
+      .select("id, course_id, title, description, material_type, file_path, file_name, created_at, status, profiles:uploader_id(display_name)")
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (r.error) return null;
+    return (r.data || []).map(bulutSatiriCevir).map(materyalNormalize).filter(Boolean);
+  }
+
+  async function gonderilerimiGetir() {
+    if (!BULUT.etkin || !BULUT.uid) return [];
+    const r = await BULUT.istemci.from("materials")
+      .select("id, course_id, title, material_type, file_name, status, rejection_reason, created_at, reviewed_at")
+      .eq("uploader_id", BULUT.uid)
+      .order("created_at", { ascending: false });
+    return r.error ? [] : (r.data || []);
+  }
+
+  async function bekleyenleriGetir() {
+    if (!BULUT.etkin) return [];
+    const r = await BULUT.istemci.from("materials")
+      .select("id, course_id, title, description, material_type, file_path, file_name, created_at, status, profiles:uploader_id(display_name, student_number)")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+    return r.error ? [] : (r.data || []);
+  }
+
+  async function gonderiOlustur(veri, dosya) {
+    if (!BULUT.etkin || !BULUT.uid) return { ok: false, hata: "Bulut bağlantısı yok." };
+    const d = dosyaDogrula(dosya);
+    if (!d.ok) return { ok: false, hata: d.hata };
+
+    const yol = depoYolu(BULUT.uid, d.uzanti);
+    const yuk = await BULUT.istemci.storage.from("materyaller")
+      .upload(yol, dosya, { contentType: d.mime, upsert: false });
+    if (yuk.error) return { ok: false, hata: "Dosya yüklenemedi." };
+
+    const ins = await BULUT.istemci.from("materials").insert({
+      course_id: veri.ders,
+      uploader_id: BULUT.uid,
+      title: veri.baslik,
+      description: veri.aciklama || null,
+      material_type: veri.tur,
+      file_path: yol,
+      file_name: gosterimAdi(dosya.name),
+      mime_type: d.mime,
+      file_size: dosya.size || null,
+      status: "pending"
+    });
+    if (ins.error) {
+      try { await BULUT.istemci.storage.from("materyaller").remove([yol]); } catch (e) { /* yok sayılır */ }
+      return { ok: false, hata: "Gönderi kaydedilemedi." };
+    }
+    return { ok: true };
+  }
+
+  async function gonderiSonuclandir(id, durum, sebep) {
+    if (!BULUT.etkin) return { ok: false, hata: "Bulut bağlantısı yok." };
+    const yama = { status: durum };
+    if (durum === "rejected") yama.rejection_reason = (sebep || "").slice(0, 300) || null;
+    const r = await BULUT.istemci.from("materials").update(yama).eq("id", id).eq("status", "pending");
+    if (r.error) return { ok: false, hata: "İşlem reddedildi. Yetkin olmayabilir." };
+    return { ok: true };
+  }
+
+  async function imzaliBaglanti(yol) {
+    if (!BULUT.etkin) return "";
+    const r = await BULUT.istemci.storage.from("materyaller").createSignedUrl(yol, 300);
+    return (!r.error && r.data && guvenliUrl(r.data.signedUrl)) || "";
   }
 
   /* ---------- giriş ---------- */
@@ -1269,17 +1639,33 @@
     if (kod !== KOD) return hataGoster("Davet kodu doğrulanamadı. Güncel kodu bölüm temsilcisinden alabilirsin.", "kod");
 
     const kayit = KAYITLI[no];
-    await oturumAc({
-      no: no,
-      ad: kayit ? kayit.ad : "No. " + no.slice(-4),
-      rol: "ogrenci",
-      sinif: kayit ? kayit.sinif : null
-    });
+    const ad = kayit ? kayit.ad : "No. " + no.slice(-4);
+
+    if (BULUT.etkin) {
+      const r = await bulutOturumAc("ogrenci", { no: no, ad: ad });
+      if (!r.ok) return hataGoster(r.hata, "no");
+      await oturumAc({ no: no, ad: ad, rol: r.rol, sinif: kayit ? kayit.sinif : null });
+      await bulutYenile();
+      return ciz();
+    }
+
+    await oturumAc({ no: no, ad: ad, rol: "ogrenci", sinif: kayit ? kayit.sinif : null });
   }
 
   async function adminGirisDene() {
     const kullanici = (document.getElementById("kullanici").value || "").trim();
     const parola = document.getElementById("parola").value || "";
+
+    if (BULUT.etkin) {
+      /* Bulut modunda parola tarayıcıda karşılaştırılmaz: doğrulama Supabase
+         Auth'ta yapılır, rol de sunucudaki profil satırından gelir. */
+      const r = await bulutOturumAc("admin", { kullanici: kullanici, parola: parola });
+      if (!r.ok) return hataGoster(r.hata, "parola");
+      if (r.rol !== "admin") return hataGoster("Bu hesabın yönetim yetkisi yok.", "kullanici");
+      await oturumAc({ no: kullanici, ad: (BULUT.profil && BULUT.profil.display_name) || "Yönetici", rol: "admin", sinif: null });
+      await bulutYenile();
+      return ciz();
+    }
 
     if (!DEMO_ADMIN_ETKIN) {
       return hataGoster("Yönetici girişi yalnızca sunucu bağlıyken kullanılabilir.", "kullanici");
@@ -1331,6 +1717,13 @@
           <button class="sb-link" data-action="favoriler" aria-current="${state.gorunum === "favoriler"}">
             ${svg(I.bookmark)} Kaydettiklerim${state.favoriler.length ? `<em>${state.favoriler.length}</em>` : ""}
           </button>
+          <button class="sb-link" data-action="gonderilerim" aria-current="${state.gorunum === "gonderilerim"}">
+            ${svg(I.inbox)} Gönderilerim${state.gonderiler.length ? `<em>${state.gonderiler.length}</em>` : ""}
+          </button>
+          ${yetkili() ? `
+          <button class="sb-link" data-action="onay" aria-current="${state.gorunum === "onay"}">
+            ${svg(I.clipboard)} Onay Bekleyenler${state.bekleyen.length ? `<span class="rozet">${state.bekleyen.length}</span>` : ""}
+          </button>` : ""}
 
           <p class="sb-section">2026–2027 AKADEMİK YILI</p>
           ${DONEMLER.map(donemBlogu).join("")}
@@ -1445,6 +1838,14 @@
             <span><b>${katkiVeren}</b> katkı veren öğrenci</span>
           </div>
         </div>
+
+        <section class="cta">
+          <h2>Bilgiyi kendine saklama.</h2>
+          <p class="cta-slogan">Bir not senden, bir dönem herkese fayda.</p>
+          <p class="cta-metin">Ders notlarını, özetlerini ve sunumlarını SosyoLab'a yükle. İncelenen materyaller bölüm arşivine eklenerek herkesin kullanımına açılır.</p>
+          <button class="btn cta-btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>
+          ${BULUT.etkin ? "" : `<p class="cta-not">Gönderim şu an kapalı: bu sürüm sunucuya bağlı değil, yalnızca arayüz gösterimi yapıyor.</p>`}
+        </section>
 
         ${sonBakilan.length ? `
         <section class="section">
@@ -1809,7 +2210,7 @@
       url: guvenliUrl(document.getElementById("f-url").value)
     });
 
-    const ok = await yaz("sosyolab:materyaller", state.materyaller);
+    const ok = BULUT.etkin ? true : await yaz("sosyolab:materyaller", state.materyaller);
     const c = dersBul(ders);
     state.katman = null;
     state.dersId = ders;
@@ -1820,6 +2221,209 @@
     if (c) { state.nav.donem = c.termId; state.nav.sinif = c.grade; }
     ciz();
     bildir(ok ? "Materyal arşive eklendi." : "Eklendi, ancak kalıcı kayıt yapılamadı.");
+  }
+
+  /* ---------- materyal paylaşımı ---------- */
+
+  function paylasKatmani() {
+    const mevcut = dersBul(state.dersId);
+    const secDonem = mevcut ? mevcut.termId : state.nav.donem;
+    const secSinif = mevcut ? mevcut.grade : (state.nav.sinif || (state.oturum && state.oturum.sinif) || 1);
+    const dersSecenek = DERSLER.filter(function (c) { return c.termId === secDonem && c.grade === secSinif; });
+
+    return `
+      <div class="scrim" data-action="kapat"></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Materyal paylaş">
+        <h2>Materyal Paylaş</h2>
+        <p class="lede">Gönderin admin incelemesinden geçtikten sonra arşivde yayınlanır.</p>
+        ${state.paylasHata ? `<p class="form-error" role="alert">${esc(state.paylasHata)}</p>` : ""}
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="p-donem">Dönem</label>
+            <select class="input" id="p-donem" data-kapsam2="1">
+              ${DONEMLER.filter(function (d) { return d.available; }).map(function (d) {
+                return `<option value="${d.id}"${d.id === secDonem ? " selected" : ""}>${esc(d.kisa)}</option>`; }).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="p-sinif">Sınıf</label>
+            <select class="input" id="p-sinif" data-kapsam2="1">
+              ${SINIFLAR.map(function (n) {
+                return `<option value="${n}"${n === secSinif ? " selected" : ""}>${n}. Sınıf</option>`; }).join("")}
+            </select>
+          </div>
+          <div class="field wide">
+            <label for="p-ders">Ders</label>
+            <select class="input" id="p-ders">
+              ${dersSecenek.length
+                ? dersSecenek.map(function (c) {
+                    return `<option value="${c.id}"${c.id === state.dersId ? " selected" : ""}>${esc(c.code)} · ${esc(c.name)}</option>`; }).join("")
+                : '<option value="">Bu dönem ve sınıfta ders yok</option>'}
+            </select>
+          </div>
+          <div class="field wide">
+            <label for="p-baslik">Materyal başlığı</label>
+            <input class="input" id="p-baslik" maxlength="200" placeholder="Örn. 4. hafta ders notları">
+          </div>
+          <div class="field wide">
+            <label for="p-aciklama">Açıklama</label>
+            <input class="input" id="p-aciklama" maxlength="300" placeholder="Hangi konuyu kapsıyor?">
+          </div>
+          <div class="field">
+            <label for="p-tur">Materyal türü</label>
+            <select class="input" id="p-tur">
+              ${PAYLASIM_TURLERI.map(function (t) { return `<option value="${t.id}">${esc(t.ad)}</option>`; }).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="p-dosya">Dosya</label>
+            <input class="input" id="p-dosya" type="file" accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png">
+          </div>
+          <p class="cta-not wide" style="color:var(--text-2);margin:0">PDF, DOCX, PPTX, JPG veya PNG · en fazla 25 MB</p>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-action="kapat">Vazgeç</button>
+          <button class="btn" data-action="paylas-gonder">${state.paylasGonderiliyor ? "Gönderiliyor…" : "İncelemeye Gönder"}</button>
+        </div>
+      </div>`;
+  }
+
+  async function paylasimGonder() {
+    const ders = document.getElementById("p-ders").value;
+    const baslik = (document.getElementById("p-baslik").value || "").trim();
+    const aciklama = (document.getElementById("p-aciklama").value || "").trim();
+    const tur = document.getElementById("p-tur").value;
+    const alan = document.getElementById("p-dosya");
+    const dosya = alan && alan.files && alan.files[0];
+
+    if (!ders) return paylasHata("Bir ders seç.");
+    if (!dersBul(ders)) return paylasHata("Seçilen ders tanınmıyor.");
+    if (!baslik) return paylasHata("Materyalin bir başlığa ihtiyacı var.");
+    const d = dosyaDogrula(dosya);
+    if (!d.ok) return paylasHata(d.hata);
+    if (!BULUT.etkin) return paylasHata("Gönderim şu an kapalı: sunucu bağlantısı yok.");
+
+    state.paylasGonderiliyor = true; state.paylasHata = null; ciz();
+    const r = await gonderiOlustur({ ders: ders, baslik: baslik, aciklama: aciklama, tur: tur }, dosya);
+    state.paylasGonderiliyor = false;
+
+    if (!r.ok) return paylasHata(r.hata);
+    state.katman = null;
+    state.paylasHata = null;
+    await bulutYenile();
+    ciz();
+    bildir("Materyalin incelemeye gönderildi. Admin onayından sonra arşivde yayınlanacak.");
+  }
+
+  function paylasHata(mesaj) {
+    state.paylasHata = mesaj;
+    state.paylasGonderiliyor = false;
+    ciz();
+  }
+
+  /* ---------- gönderilerim ---------- */
+
+  function gonderilerimGorunumu() {
+    return `
+      <div class="content">
+        <div class="page-head">
+          <p class="eyebrow">${svg(I.inbox, "icon-sm")} KİŞİSEL</p>
+          <h1 class="page-title">Gönderilerim</h1>
+          <p class="page-sub">Paylaştığın materyallerin inceleme durumu.</p>
+        </div>
+        ${!BULUT.etkin
+          ? `<div class="empty">${svg(I.inbox, "icon-lg")}<strong>Gönderim şu an kapalı.</strong><p>Bu sürüm sunucuya bağlı değil; materyal gönderimi devre dışı.</p></div>`
+          : state.gonderiler.length
+            ? state.gonderiler.map(gonderiSatiri).join("")
+            : `<div class="empty">${svg(I.inbox, "icon-lg")}<strong>Henüz materyal göndermedin.</strong><p>Arşive katkı vermek için gösterge panosundaki "Materyal Paylaş" düğmesini kullan.</p>
+                 <button class="btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button></div>`}
+      </div>`;
+  }
+
+  function gonderiSatiri(g) {
+    const c = dersBul(g.course_id);
+    const durum = DURUM_ETIKET[g.status] || "İnceleniyor";
+    const tur = PAYLASIM_TURLERI.filter(function (t) { return t.id === g.material_type; })[0];
+    return `
+      <div class="inceleme">
+        <span class="durum durum-${esc(g.status)}">${esc(durum)}</span>
+        <h3 style="margin-top:8px">${esc(g.title)}</h3>
+        <p class="alt">${c ? esc(c.code) + " · " + esc(c.name) : esc(g.course_id)}${tur ? " · " + esc(tur.ad) : ""}</p>
+        <p class="alt">${esc(gosterimAdi(g.file_name))} · ${esc(String(g.created_at || "").slice(0, 10))}</p>
+        ${g.status === "rejected" && g.rejection_reason
+          ? `<p class="aciklama"><strong>Ret gerekçesi:</strong> ${esc(g.rejection_reason)}</p>` : ""}
+      </div>`;
+  }
+
+  /* ---------- admin inceleme ---------- */
+
+  function onayGorunumu() {
+    if (!yetkili()) return panelGorunumu();
+    return `
+      <div class="content">
+        <div class="page-head">
+          <p class="eyebrow">${svg(I.clipboard, "icon-sm")} YÖNETİM</p>
+          <h1 class="page-title">Onay Bekleyenler</h1>
+          <p class="page-sub">Onaylanan materyaller doğrudan ders arşivinde yayınlanır.</p>
+        </div>
+        ${state.onayHata ? `<p class="form-error" role="alert">${esc(state.onayHata)}</p>` : ""}
+        ${!BULUT.etkin
+          ? `<div class="empty">${svg(I.clipboard, "icon-lg")}<strong>İnceleme kuyruğu kapalı.</strong><p>Bu sürüm sunucuya bağlı değil.</p></div>`
+          : state.bekleyen.length
+            ? state.bekleyen.map(bekleyenKarti).join("")
+            : `<div class="empty">${svg(I.clipboard, "icon-lg")}<strong>Bekleyen gönderi yok.</strong><p>Yeni gönderiler burada görünecek.</p></div>`}
+      </div>`;
+  }
+
+  function bekleyenKarti(g) {
+    const c = dersBul(g.course_id);
+    const tur = PAYLASIM_TURLERI.filter(function (t) { return t.id === g.material_type; })[0];
+    const yukleyen = (g.profiles && g.profiles.display_name) || "Bilinmiyor";
+    const no = (g.profiles && g.profiles.student_number) || "";
+    const secili = state.reddedilen === g.id;
+    return `
+      <div class="inceleme" data-gonderi="${esc(g.id)}">
+        <h3>${esc(g.title)}</h3>
+        <p class="alt">${c ? esc(c.code) + " · " + esc(c.name) : esc(g.course_id)}${tur ? " · " + esc(tur.ad) : ""}</p>
+        <p class="alt">${esc(yukleyen)}${no ? " · " + esc(no) : ""} · ${esc(String(g.created_at || "").slice(0, 10))}</p>
+        <p class="alt">${esc(gosterimAdi(g.file_name))}</p>
+        ${g.description ? `<p class="aciklama">${esc(g.description)}</p>` : ""}
+        <div class="inceleme-actions">
+          <button class="btn btn-ghost" data-action="onizle" data-id="${esc(g.id)}">Önizle</button>
+          <button class="btn btn-onay" data-action="onayla" data-id="${esc(g.id)}">Onayla</button>
+          <button class="btn btn-ret" data-action="ret-ac" data-id="${esc(g.id)}">Reddet</button>
+        </div>
+        ${secili ? `
+        <div class="sebep">
+          <input class="input" id="ret-sebep" maxlength="300" placeholder="Ret gerekçesi (isteğe bağlı)">
+          <div class="inceleme-actions" style="margin-top:0">
+            <button class="btn btn-ret" data-action="reddet" data-id="${esc(g.id)}">Reddi Onayla</button>
+            <button class="btn btn-ghost" data-action="ret-kapat">Vazgeç</button>
+          </div>
+        </div>` : ""}
+      </div>`;
+  }
+
+  async function onizle(id) {
+    const g = state.bekleyen.filter(function (x) { return x.id === id; })[0];
+    if (!g) return;
+    const url = await imzaliBaglanti(g.file_path);
+    if (!url) return bildir("Önizleme bağlantısı alınamadı.");
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function sonuclandir(id, durum) {
+    const sebepAlani = document.getElementById("ret-sebep");
+    const sebep = sebepAlani ? sebepAlani.value : "";
+    const r = await gonderiSonuclandir(id, durum, sebep);
+    if (!r.ok) { state.onayHata = r.hata; return ciz(); }
+    state.onayHata = null;
+    state.reddedilen = null;
+    await bulutYenile();
+    ciz();
+    bildir(durum === "approved" ? "Materyal onaylandı ve arşive eklendi." : "Materyal reddedildi.");
   }
 
   /* ---------- genel arama ---------- */
@@ -1883,9 +2487,12 @@
 
     const govde = state.gorunum === "ders" ? dersGorunumu()
       : state.gorunum === "favoriler" ? favoriGorunumu()
+      : state.gorunum === "gonderilerim" ? gonderilerimGorunumu()
+      : state.gorunum === "onay" ? onayGorunumu()
       : panelGorunumu();
 
     const katman = state.katman === "ekle" ? ekleKatmani()
+      : state.katman === "paylas" ? paylasKatmani()
       : state.katman === "ara" ? aramaKatmani()
       : state.secili ? cekmece()
       : "";
@@ -1957,12 +2564,39 @@
       state.mod = "kullanici";
       state.hata = null;
       state.nav.sinif = null;
+      state.gonderiler = [];
+      state.bekleyen = [];
+      await bulutCikis();
       try { await window.storage.delete("sosyolab:oturum"); } catch (err) { /* yok sayılır */ }
       return ciz();
     }
 
     if (action === "panel") { state.gorunum = "panel"; state.dersId = null; state.katman = null; state.sidebarAcik = false; return ciz(); }
     if (action === "favoriler") { state.gorunum = "favoriler"; state.katman = null; state.sidebarAcik = false; return ciz(); }
+
+    if (action === "gonderilerim") {
+      state.gorunum = "gonderilerim"; state.katman = null; state.sidebarAcik = false;
+      if (BULUT.etkin) state.gonderiler = await gonderilerimiGetir();
+      return ciz();
+    }
+
+    if (action === "onay") {
+      if (!yetkili()) return bildir("Bu bölüm yalnızca yöneticilere açık.");
+      state.gorunum = "onay"; state.katman = null; state.sidebarAcik = false; state.reddedilen = null;
+      if (BULUT.etkin) state.bekleyen = await bekleyenleriGetir();
+      return ciz();
+    }
+
+    if (action === "paylas-ac") {
+      state.katman = "paylas"; state.secili = null; state.paylasHata = null; state.sidebarAcik = false;
+      return ciz();
+    }
+    if (action === "paylas-gonder") return paylasimGonder();
+    if (action === "onizle") { if (!yetkili()) return bildir("Yetkin yok."); return onizle(hedef.dataset.id); }
+    if (action === "onayla") { if (!yetkili()) return bildir("Yetkin yok."); return sonuclandir(hedef.dataset.id, "approved"); }
+    if (action === "ret-ac") { if (!yetkili()) return bildir("Yetkin yok."); state.reddedilen = hedef.dataset.id; return ciz(); }
+    if (action === "ret-kapat") { state.reddedilen = null; return ciz(); }
+    if (action === "reddet") { if (!yetkili()) return bildir("Yetkin yok."); return sonuclandir(hedef.dataset.id, "rejected"); }
     if (action === "ders") return dersAc(hedef.dataset.id);
 
     if (action === "donem") { state.nav.donem = hedef.dataset.id; state.katman = null; return ciz(); }
@@ -2012,6 +2646,16 @@
     }
     if (e.target.id === "aramaGiris") { state.aramaSorgu = e.target.value; return ciz(); }
     if (e.target.id === "sirala") { state.sirala = e.target.value; return ciz(); }
+    if (e.target.dataset && e.target.dataset.kapsam2) {
+      const donem = document.getElementById("p-donem").value;
+      const sinif = parseInt(document.getElementById("p-sinif").value, 10);
+      const sec = document.getElementById("p-ders");
+      const dersler = DERSLER.filter(function (c) { return c.termId === donem && c.grade === sinif; });
+      sec.innerHTML = dersler.length
+        ? dersler.map(function (c) { return `<option value="${c.id}">${esc(c.code)} · ${esc(c.name)}</option>`; }).join("")
+        : '<option value="">Bu dönem ve sınıfta ders yok</option>';
+      return;
+    }
     if (e.target.dataset && e.target.dataset.kapsam) {
       const donem = document.getElementById("f-donem").value;
       const sinif = parseInt(document.getElementById("f-sinif").value, 10);

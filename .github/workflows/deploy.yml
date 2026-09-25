@@ -38,6 +38,7 @@ jobs:
           # README.md ve workflow dosyaları depoda kalır, siteye çıkmaz.
           cp index.html _site/index.html
           cp 404.html   _site/404.html
+          cp config.js  _site/config.js
           cp .nojekyll  _site/.nojekyll
           echo "Yayınlanacak içerik:"
           ls -la _site
@@ -47,6 +48,7 @@ jobs:
           set -euo pipefail
           beklenen="404.html
           .nojekyll
+          config.js
           index.html"
           gelen="$(cd _site && find . -mindepth 1 -printf '%P\n' | sort)"
           if [ "$(printf '%s\n' "$beklenen" | sed 's/^ *//' | sort)" != "$gelen" ]; then
@@ -54,7 +56,7 @@ jobs:
             printf '%s\n' "$gelen"
             exit 1
           fi
-          echo "Yayın klasörü doğrulandı: yalnızca index.html, 404.html, .nojekyll"
+          echo "Yayın klasörü doğrulandı: yalnızca index.html, 404.html, config.js, .nojekyll"
 
       - name: Siteyi paketle
         uses: actions/upload-pages-artifact@v3
