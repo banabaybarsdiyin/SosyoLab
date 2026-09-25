@@ -22,6 +22,6 @@
    ============================================================================ */
 
 window.SOSYOLAB_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: ""
+  SUPABASE_URL: "https://ulwgkfulxqfeicjftqeb.supabase.co",
+SUPABASE_ANON_KEY: "sb_publishable_3XVOH1j-GFus3hIbzxI8Qg_aHiTPElA"
 };
