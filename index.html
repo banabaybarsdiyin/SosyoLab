@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -1290,9 +1290,13 @@
         }
         const onayli = await onayliMateryalleriGetir();
         if (onayli) state.materyaller = onayli;
-        if (state.oturum && BULUT.profil) {
-          state.oturum.rol = BULUT.profil.role === "admin" ? "admin" : "ogrenci";
-        }
+        if (state.oturum) {
+  const sunucuRolu = (BULUT.profil && BULUT.profil.role === "admin") ? "admin" : "ogrenci";
+  if (state.oturum.rol !== sunucuRolu) {
+    state.oturum.rol = sunucuRolu;
+    await yaz("sosyolab:oturum", state.oturum);
+  }
+}
       } catch (e) { BULUT.hata = "Sunucudan materyal alınamadı."; }
     }
 
