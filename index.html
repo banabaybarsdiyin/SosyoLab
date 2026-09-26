@@ -187,28 +187,6 @@
     box-shadow: 0 1px 2px rgba(15, 27, 38, 0.04), 0 10px 30px -22px rgba(15, 27, 38, 0.45);
   }
 
-  .auth-modes {
-    display: flex;
-    gap: 2px;
-    border-bottom: 1px solid var(--border);
-    margin: -6px 0 20px;
-  }
-
-  .auth-mode {
-    flex: 1;
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 9px 6px;
-    font-size: 14px;
-    color: var(--text-2);
-    cursor: pointer;
-    transition: color 150ms ease, border-color 150ms ease;
-  }
-
-  .auth-mode:hover { color: var(--text); }
-  .auth-mode[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--ink); }
-
   .auth-card h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
   .auth-card p.lede { color: var(--text-2); font-size: 14px; margin: 0 0 22px; }
 
@@ -1118,7 +1096,6 @@
     secili: null,
     silOnay: false,
     aramaSorgu: "",
-    mod: "kullanici",
     gonderiler: [],
     bekleyen: [],
     paylasHata: null,
@@ -1597,87 +1574,98 @@
 
         <section class="auth-right">
           <div class="auth-card">
-            <div class="auth-modes" role="tablist" aria-label="Giriş türü">
-              <button class="auth-mode" role="tab" data-action="mod" data-mod="kullanici" aria-selected="${state.mod !== "admin"}">Kullanıcı Girişi</button>
-              <button class="auth-mode" role="tab" data-action="mod" data-mod="admin" aria-selected="${state.mod === "admin"}">Admin Girişi</button>
-            </div>
-            ${state.mod === "admin" ? `
-            <h2>Admin girişi</h2>
-            <p class="lede">Materyal ekleme ve silme yetkisi bu moddadır.</p>
-            ${state.hata ? `<p class="form-error" role="alert">${esc(state.hata)}</p>` : ""}
-            <div class="field">
-              <label for="kullanici">Kullanıcı adı</label>
-              <input class="input" id="kullanici" type="text" autocomplete="off">
-            </div>
-            <div class="field">
-              <label for="parola">Parola</label>
-              <input class="input" id="parola" type="password" autocomplete="off">
-            </div>
-            <button class="btn-primary" type="button" data-action="giris-admin">Admin Olarak Gir</button>
-            <p class="auth-foot">Arşivi yöneten bölüm temsilcileri için.</p>` : `
             <h2>Arşive giriş</h2>
-            <p class="lede">Bölüm kayıt listesindeki numaranla giriş yap.</p>
+            <p class="lede">Öğrenci numaran veya kullanıcı adınla giriş yap.</p>
             ${state.hata ? `<p class="form-error" role="alert">${esc(state.hata)}</p>` : ""}
             <div class="field">
-              <label for="no">Öğrenci numarası</label>
-              <input class="input" id="no" type="text" inputmode="numeric" maxlength="10" placeholder="10 haneli numara" autocomplete="off">
+              <label for="kimlik">Öğrenci numarası veya kullanıcı adı</label>
+              <input class="input" id="kimlik" type="text" maxlength="64" placeholder="Örn. 1000000001 veya sosyolog35" autocomplete="username">
             </div>
             <div class="field">
-              <label for="kod">Davet kodu</label>
-              <input class="input" id="kod" type="password" placeholder="Bölüm temsilcisinden" autocomplete="off">
+              <label for="sifre">Davet kodu veya parola</label>
+              <input class="input" id="sifre" type="password" placeholder="Davet kodu / parola" autocomplete="current-password">
             </div>
             <button class="btn-primary" type="button" data-action="giris">Arşive Gir</button>
-            <p class="auth-foot">Yalnızca bölüm öğrencileri için.</p>`}
-            <p class="auth-demo">Gösteri sürümü: her iki giriş de yalnızca tarayıcıda doğrulanır, gerçek erişim güvenliği sağlamaz. Eklenen materyaller yalnızca kendi tarayıcında saklanır.</p>
-            ${DEV ? '<details class="auth-dev"><summary>Geliştirme notu</summary><p style="margin:8px 0 0">Demo hesapları kaynak koddaki KAYITLI ve ADMIN sabitlerindedir.</p></details>' : ""}
+            <p class="auth-foot">Bölüm öğrencileri ve yöneticiler için.</p>
+            <p class="auth-demo">Kimlik doğrulama ve materyal işlemleri güvenli sunucu kurallarıyla korunur.</p>
+            ${DEV ? '<details class="auth-dev"><summary>Geliştirme notu</summary><p style="margin:8px 0 0">Öğrenci demo hesapları kaynak koddaki KAYITLI sabitindedir.</p></details>' : ""}
           </div>
         </section>
       </div>`;
   }
 
-  async function girisDene() {
-    const no = (document.getElementById("no").value || "").replace(/\D/g, "");
-    const kod = (document.getElementById("kod").value || "").trim().toUpperCase();
+  /* Yönetici giriş takma adı. Bu YALNIZCA bir kullanıcı adıdır; yetki vermez.
+     Zincir: takma ad → sabit e-posta eşlemesi → Supabase parola doğrulaması →
+     kimliği doğrulanmış UUID → profiles satırı → role === "admin".
+     Zincirin herhangi bir halkası kopuyorsa giriş reddedilir. */
+  const ADMIN_TAKMA_AD = "sosyolog35";
+  const ADMIN_EPOSTA = "sosyolog.35@sosyolab.local";
 
-    if (no.length !== 10) return hataGoster("Öğrenci numarası 10 haneli olmalı.", "no");
-    if (kod !== KOD) return hataGoster("Davet kodu doğrulanamadı. Güncel kodu bölüm temsilcisinden alabilirsin.", "kod");
+  const adminTakmaAdiMi = (v) => {
+    const t = String(v || "").trim().toLowerCase();
+    return t === ADMIN_TAKMA_AD || t === "sosyolog.35";
+  };
+
+  async function girisDene() {
+    const kimlik = (document.getElementById("kimlik").value || "").trim();
+    const sifre = document.getElementById("sifre").value || "";
+
+    if (!kimlik) return hataGoster("Öğrenci numaranı ya da kullanıcı adını gir.", "kimlik");
+    if (!sifre) return hataGoster("Davet kodunu ya da parolanı gir.", "sifre");
+
+    return adminTakmaAdiMi(kimlik) ? yoneticiGirisi(sifre) : ogrenciGirisi(kimlik, sifre);
+  }
+
+  async function yoneticiGirisi(parola) {
+    if (BULUT.etkin) {
+      /* Parola tarayıcıda hiçbir şeyle karşılaştırılmaz: doğrulama Supabase
+         Auth'ta yapılır, yetki sunucudaki profil satırından gelir. */
+      const r = await bulutOturumAc("admin", { kullanici: ADMIN_EPOSTA, parola: parola });
+      if (!r.ok) return hataGoster("Kullanıcı adı ya da parola doğrulanamadı.", "sifre");
+      if (r.rol !== "admin") {
+        await bulutCikis();
+        return hataGoster("Bu hesabın yönetim yetkisi yok.", "kimlik");
+      }
+      await oturumAc({
+        no: ADMIN_TAKMA_AD,
+        ad: (BULUT.profil && BULUT.profil.display_name) || "Yönetici",
+        rol: "admin",
+        sinif: null
+      });
+      await bulutYenile();
+      return ciz();
+    }
+
+    if (!DEMO_ADMIN_ETKIN) {
+      return hataGoster("Yönetici girişi yalnızca sunucu bağlıyken kullanılabilir.", "kimlik");
+    }
+    if (parola !== ADMIN.parola) return hataGoster("Parola doğrulanamadı.", "sifre");
+    await oturumAc({ no: ADMIN_TAKMA_AD, ad: ADMIN.ad, rol: "admin", sinif: null });
+  }
+
+  async function ogrenciGirisi(kimlik, kod) {
+    const no = kimlik.replace(/\D/g, "");
+    if (no.length !== 10 || no !== kimlik) {
+      return hataGoster("Öğrenci numarası 10 haneli olmalı.", "kimlik");
+    }
+    if (kod.trim().toUpperCase() !== KOD) {
+      return hataGoster("Davet kodu doğrulanamadı. Güncel kodu bölüm temsilcisinden alabilirsin.", "sifre");
+    }
 
     const kayit = KAYITLI[no];
     const ad = kayit ? kayit.ad : "No. " + no.slice(-4);
 
     if (BULUT.etkin) {
+      /* Öğrenci girişi hiçbir zaman admin rolü talep edemez: rol sunucudaki
+         profil satırından okunur ve varsayılanı sıradan kullanıcıdır. */
       const r = await bulutOturumAc("ogrenci", { no: no, ad: ad });
-      if (!r.ok) return hataGoster(r.hata, "no");
+      if (!r.ok) return hataGoster(r.hata, "kimlik");
       await oturumAc({ no: no, ad: ad, rol: r.rol, sinif: kayit ? kayit.sinif : null });
       await bulutYenile();
       return ciz();
     }
 
     await oturumAc({ no: no, ad: ad, rol: "ogrenci", sinif: kayit ? kayit.sinif : null });
-  }
-
-  async function adminGirisDene() {
-    const kullanici = (document.getElementById("kullanici").value || "").trim();
-    const parola = document.getElementById("parola").value || "";
-
-    if (BULUT.etkin) {
-      /* Bulut modunda parola tarayıcıda karşılaştırılmaz: doğrulama Supabase
-         Auth'ta yapılır, rol de sunucudaki profil satırından gelir. */
-      const r = await bulutOturumAc("admin", { kullanici: kullanici, parola: parola });
-      if (!r.ok) return hataGoster(r.hata, "parola");
-      if (r.rol !== "admin") return hataGoster("Bu hesabın yönetim yetkisi yok.", "kullanici");
-      await oturumAc({ no: kullanici, ad: (BULUT.profil && BULUT.profil.display_name) || "Yönetici", rol: "admin", sinif: null });
-      await bulutYenile();
-      return ciz();
-    }
-
-    if (!DEMO_ADMIN_ETKIN) {
-      return hataGoster("Yönetici girişi yalnızca sunucu bağlıyken kullanılabilir.", "kullanici");
-    }
-    if (kullanici !== ADMIN.kullanici) return hataGoster("Kullanıcı adı doğrulanamadı.", "kullanici");
-    if (parola !== ADMIN.parola) return hataGoster("Parola doğrulanamadı.", "parola");
-
-    await oturumAc({ no: ADMIN.kullanici, ad: ADMIN.ad, rol: "admin", sinif: null });
   }
 
   async function oturumAc(oturum) {
@@ -2556,8 +2544,6 @@
     const action = hedef.dataset.action;
 
     if (action === "giris") return girisDene();
-    if (action === "giris-admin") return adminGirisDene();
-    if (action === "mod") { state.mod = hedef.dataset.mod; state.hata = null; return ciz(); }
 
     if (action === "cikis") {
       state.oturum = null;
@@ -2565,7 +2551,6 @@
       state.katman = null;
       state.gorunum = "panel";
       state.dersId = null;
-      state.mod = "kullanici";
       state.hata = null;
       state.nav.sinif = null;
       state.gonderiler = [];
@@ -2673,8 +2658,7 @@
 
   root.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
-    if (e.target.id === "no" || e.target.id === "kod") { e.preventDefault(); girisDene(); }
-    if (e.target.id === "kullanici" || e.target.id === "parola") { e.preventDefault(); adminGirisDene(); }
+    if (e.target.id === "kimlik" || e.target.id === "sifre") { e.preventDefault(); girisDene(); }
   });
 
   document.addEventListener("keydown", (e) => {

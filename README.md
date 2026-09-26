@@ -20,37 +20,36 @@ python3 -m http.server 8000
 
 ## Bu sürüm bir gösteri sürümüdür
 
-### İki giriş modu var, ikisi de gerçek kimlik doğrulama değildir
+### Tek giriş formu, iki rol
 
-Giriş ekranında iki mod bulunur:
+Giriş ekranında tek bir form vardır. Girilen kimliğe göre yönlendirme yapılır:
 
-- **Kullanıcı Girişi** — öğrenci numarası + davet kodu. Arşivi görüntüler,
-  arama yapar, favori ekler.
-- **Admin Girişi** — kullanıcı adı + parola. Yukarıdakilerin tamamına ek olarak
-  materyal ekleyebilir ve silebilir.
+- **Öğrenci** — 10 haneli öğrenci numarası + davet kodu. Arşivi görüntüler,
+  arama yapar, favori ekler, materyal gönderir.
+- **Yönetici** — `sosyolog35` kullanıcı adı + parola. Yukarıdakilere ek olarak
+  gönderileri onaylar, reddeder ve materyal yönetir.
 
-Demo bilgileri (kaynak kodda `KAYITLI`, `KOD` ve `ADMIN` sabitlerinde açıkça
-durur; Supabase yapılandırıldığında admin girişi bunları kullanmaz, Supabase
-Auth'a gider):
+Yönetici girişinde parola tarayıcıda hiçbir şeyle karşılaştırılmaz. Takma ad
+`sosyolog.35@sosyolab.local` adresine eşlenir, doğrulama Supabase Auth'ta
+yapılır ve yetki yalnızca `public.profiles.role = 'admin'` satırından gelir.
+Zincirin herhangi bir halkası kopuyorsa giriş reddedilir.
 
-| Mod | Bilgi |
-|---|---|
-| Kullanıcı | `1000000001` / `DEMO2026` |
-| Admin (yalnızca demo modu) | `Sosyolog.35` / `DEMO-ADMIN-2026` |
+Öğrenci demo bilgileri kaynak koddaki `KAYITLI` ve `KOD` sabitlerindedir ve
+bilerek sahtedir. Gerçek yönetici parolası kaynak koda hiç girmez; yalnızca
+Supabase Auth içinde bulunur.
 
 ### Giriş gerçek kimlik doğrulama değildir
 
-Her iki modun da kontrolü tamamen tarayıcıda çalışır. Davet kodu, admin
-kullanıcı adı ve admin parolası JavaScript kaynağında düz metin olarak durur;
-sayfanın kaynağını görüntüleyen herkes okuyabilir. Sunucu tarafında doğrulama,
-oturum imzalama ya da yetki kontrolü yoktur. Bu yüzden:
+Supabase yapılandırılmamışken (demo modu) uygulama yalnızca arayüz gösterimi
+yapar: davet kodu tarayıcıda karşılaştırılır, yönetici girişi tamamen kapalıdır
+ve materyal gönderimi çalışmaz. Bu modda:
 
-- Buradaki giriş ekranı bir erişim kısıtı değil, bir gösterimdir.
+- Demo modundaki giriş ekranı bir erişim kısıtı değil, bir gösterimdir.
 - Kaynak koddaki `KAYITLI`, `KOD` ve `ADMIN` değerleri kurgusaldır ve sır
   değildir.
-- Admin rolü yalnızca arayüzdeki yönetim denetimlerini açar. Tarayıcı
-  geliştirici araçlarından ya da `localStorage` elle düzenlenerek aşılabilir;
-  gerçek bir yetki sınırı değildir.
+- Supabase bağlıyken durum farklıdır: rol sunucudaki profil satırından okunur,
+  yerel depodaki bayat bir `admin` kaydı yönetim arayüzünü açamaz ve her veri
+  işlemi RLS politikalarından geçer.
 - Roller: `ogrenci` (varsayılan) ve `admin`. Depodan gelen tanınmayan her rol
   değeri en düşük yetkiye düşürülür, asla admin'e yükseltilmez.
 - **Gerçek öğrenci numarası, gerçek ad veya bölümün gerçek davet kodu bu
