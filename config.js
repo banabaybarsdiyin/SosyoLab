@@ -49,6 +49,5 @@ window.SOSYOLAB_CONFIG = {
   SUPABASE_URL: "https://ulwgkfulxqfeicjftqeb.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_3XVOH1j-GFus3hIbzxI8Qg_aHiTPElA",
 
-  INVITE_MODE: "local",
-  LOCAL_INVITE_CODE: "DEMO2026"
+  INVITE_MODE: "server"
 };
