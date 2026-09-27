@@ -5,7 +5,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Yayınlama için gereken en dar izin kümesi
+# Yayınlama için gereken en dar izin kümesi. Varsayılan geniş izinler
+# devre dışı: hiçbir adım depoya yazamaz.
 permissions:
   contents: read
   pages: write
@@ -23,46 +24,129 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
+      # Üçüncü taraf eylemler etiketle değil commit SHA'sıyla sabitlenir:
+      # etiket taşınabilir, SHA taşınamaz. Sürüm yükseltirken hem yorumdaki
+      # sürümü hem SHA'yı birlikte güncelleyin.
       - name: Depoyu al
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Sızdırılmış gizli anahtar taraması
+        run: |
+          set -euo pipefail
+          # Anahtarın ADI değil DEĞERİ aranır: belgelerde "service_role
+          # anahtarı buraya yazılmaz" gibi cümleler yanlış alarm üretmesin.
+          # sb_publishable_ / anon key tarayıcıya gitmek üzere tasarlanmıştır,
+          # bu yüzden bilinçli olarak desenlerin dışındadır.
+          desenler='sb_secret_[A-Za-z0-9_-]{8,}'
+          desenler="$desenler"'|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+          desenler="$desenler"'|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}'
+          desenler="$desenler"'|(service_role|SERVICE_ROLE|SERVICE_KEY|JWT_SECRET|DB_PASSWORD)[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']'
+          desenler="$desenler"'|auth\.admin\.'
+          if grep -rEn "$desenler" \
+               index.html 404.html app.js styles.css 404.css config.js vendor assets; then
+            echo "::error::Yayınlanacak dosyalarda gizli anahtar deseni bulundu. Yayın durduruldu."
+            exit 1
+          fi
+          echo "Gizli anahtar taraması temiz."
+
+      - name: Inline betik / stil denetimi
+        run: |
+          set -euo pipefail
+          # Katı CSP inline koda izin vermiyor: HTML'de betik gövdesi,
+          # stil bloğu ya da satır içi stil/olay niteliği kalmamalı.
+          # Denetimden önce HTML yorumları çıkarılır, aksi hâlde bu kuralı
+          # anlatan açıklama satırları kendini tetikler.
+          hata=0
+          for f in index.html 404.html; do
+            govde="$(perl -0777 -pe 's/<!--.*?-->//gs' "$f")"
+            if printf '%s' "$govde" | grep -nE '<script[^>]*>[^<[:space:]]'; then
+              echo "::error::$f içinde satır içi betik gövdesi var."; hata=1
+            fi
+            if printf '%s' "$govde" | grep -nE '<style|[[:space:]]style=|[[:space:]]on[a-z]+='; then
+              echo "::error::$f içinde stil bloğu ya da satır içi stil/olay niteliği var."; hata=1
+            fi
+          done
+          # app.js: JS blok yorumları çıkarıldıktan sonra üretilen işaretleme.
+          kod="$(perl -0777 -pe 's{/\*.*?\*/}{}gs' app.js)"
+          if printf '%s' "$kod" | grep -nE '[[:space:]]style=|[[:space:]]on(click|change|load|error|submit|input)='; then
+            echo "::error::app.js üretilen işaretlemede satır içi stil/olay niteliği var."; hata=1
+          fi
+          [ "$hata" -eq 0 ] && echo "Inline betik/stil denetimi temiz."
+          exit "$hata"
 
       - name: Pages yapılandırması
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Yayın klasörünü hazırla
         run: |
           set -euo pipefail
           rm -rf _site
-          mkdir -p _site
+          mkdir -p _site/vendor _site/assets/fonts
           # Yalnızca sitenin ihtiyaç duyduğu dosyalar kopyalanır.
-          # README.md ve workflow dosyaları depoda kalır, siteye çıkmaz.
-          cp index.html _site/index.html
-          cp 404.html   _site/404.html
-          cp config.js  _site/config.js
-          cp .nojekyll  _site/.nojekyll
+          # README.md, supabase/, docs/ ve workflow dosyaları depoda kalır,
+          # siteye çıkmaz.
+          cp index.html  _site/index.html
+          cp 404.html    _site/404.html
+          cp styles.css  _site/styles.css
+          cp 404.css     _site/404.css
+          cp app.js      _site/app.js
+          cp config.js   _site/config.js
+          cp .nojekyll   _site/.nojekyll
+          cp vendor/supabase-js-2.45.4.min.js _site/vendor/
+          cp assets/fonts/*.woff2 _site/assets/fonts/
           echo "Yayınlanacak içerik:"
-          ls -la _site
+          find _site -mindepth 1 -printf '%P\n' | sort
+
+      - name: Bağımlılık bütünlüğünü doğrula
+        run: |
+          set -euo pipefail
+          # Depoya alınan supabase-js, yayımlanmış 2.45.4 paketiyle bayt bayt
+          # aynı olmalı. Hash değiştiyse ya kasıtlı bir yükseltme yapılmıştır
+          # (bu satır da güncellenmeli) ya da dosya kurcalanmıştır.
+          beklenen="8596965fe918e656600a1b568d3a168f5c0d3d22a600886bb6f44a6555db01e7"
+          gelen="$(sha256sum vendor/supabase-js-2.45.4.min.js | cut -d' ' -f1)"
+          if [ "$gelen" != "$beklenen" ]; then
+            echo "::error::vendor/supabase-js-2.45.4.min.js hash uyuşmuyor."
+            echo "beklenen: $beklenen"
+            echo "gelen   : $gelen"
+            exit 1
+          fi
+          echo "Bağımlılık hash'i doğrulandı."
 
       - name: Yayın klasörünü doğrula
         run: |
           set -euo pipefail
-          beklenen="404.html
-          .nojekyll
-          config.js
-          index.html"
+          beklenen="$(printf '%s\n' \
+            '.nojekyll' \
+            '404.css' \
+            '404.html' \
+            'app.js' \
+            'assets' \
+            'assets/fonts' \
+            'assets/fonts/inter-latin-ext.subset.woff2' \
+            'assets/fonts/inter-latin.subset.woff2' \
+            'assets/fonts/newsreader-latin-ext.subset.woff2' \
+            'assets/fonts/newsreader-latin.subset.woff2' \
+            'config.js' \
+            'index.html' \
+            'styles.css' \
+            'vendor' \
+            'vendor/supabase-js-2.45.4.min.js' | sort)"
           gelen="$(cd _site && find . -mindepth 1 -printf '%P\n' | sort)"
-          if [ "$(printf '%s\n' "$beklenen" | sed 's/^ *//' | sort)" != "$gelen" ]; then
-            echo "Yayın klasörü beklenenden farklı:"
-            printf '%s\n' "$gelen"
+          if [ "$beklenen" != "$gelen" ]; then
+            echo "::error::Yayın klasörü beklenenden farklı."
+            diff <(printf '%s\n' "$beklenen") <(printf '%s\n' "$gelen") || true
             exit 1
           fi
-          echo "Yayın klasörü doğrulandı: yalnızca index.html, 404.html, config.js, .nojekyll"
+          echo "Yayın klasörü doğrulandı."
 
       - name: Siteyi paketle
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
 
       - name: Pages'e dağıt
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

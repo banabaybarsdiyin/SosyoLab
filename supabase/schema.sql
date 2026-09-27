@@ -98,6 +98,18 @@ grant execute on function public.is_admin() to authenticated;
 
 -- Kullanıcı kendi rolünü değiştiremesin: admin olmayan güncellemelerde
 -- role alanı eski değerine geri sabitlenir.
+--
+-- auth.uid() is null koşulu ne demek:
+--   Bu trigger SECURITY DEFINER'dır ve çağıranın yetkisine bakmaksızın çalışır.
+--   SQL Editor / service_role / göç bağlamında istek JWT'si olmadığı için
+--   auth.uid() NULL ve is_admin() false döner. Bu koşul eklenmeden ilk admin
+--   HİÇ oluşturulamıyordu: role = 'admin' sessizce 'user'a düşüyordu.
+--
+--   Bu bir güvenlik gevşemesi DEĞİLDİR. İstek bağlamından gelen bir yazma
+--   auth.uid() NULL ile bu trigger'a hiç ulaşamaz: aşağıdaki RLS politikaları
+--   hem INSERT hem UPDATE için "id = auth.uid() or is_admin()" şartı koyar ve
+--   NULL bu şartın ikisini de karşılamaz. Yani NULL uid, yalnızca RLS'i aşan
+--   güvenilir sunucu bağlantısından (service_role, tablo sahibi) gelebilir.
 create or replace function public.profiles_rol_koru()
 returns trigger
 language plpgsql
@@ -105,7 +117,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then
+  if auth.uid() is not null and not public.is_admin() then
     new.role := old.role;
   end if;
   return new;
@@ -118,6 +130,7 @@ create trigger profiles_rol_koru_trg
   for each row execute function public.profiles_rol_koru();
 
 -- Yeni kayıtta rol her zaman 'user' başlar; admin yalnızca dashboard'dan verilir.
+-- auth.uid() is null koşulunun gerekçesi için yukarıdaki nota bakın.
 create or replace function public.profiles_rol_varsayilan()
 returns trigger
 language plpgsql
@@ -125,7 +138,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then
+  if auth.uid() is not null and not public.is_admin() then
     new.role := 'user';
   end if;
   return new;
@@ -310,8 +323,21 @@ create policy materyal_silme on storage.objects
 --    values ('BURAYA_UUID', 'Bölüm Yöneticisi', 'admin')
 --    on conflict (id) do update set role = 'admin';
 --
---    (role sütunu trigger ile korunur; bu insert'i SQL Editor'den
---     service_role yetkisiyle çalıştırdığınız için geçerlidir.)
+--    role sütunu profiles_rol_varsayilan_trg ve profiles_rol_koru_trg
+--    tarafından korunur. Bu trigger'lar SQL Editor'den gelen yazmayı
+--    BİLİNÇLİ olarak serbest bırakır: istek JWT'si olmadığı için
+--    auth.uid() NULL döner ve koruma devreye girmez. İstek bağlamından
+--    (tarayıcıdan) gelen bir yazma ise RLS'i geçemediği için trigger'a
+--    hiç ulaşamaz. Ayrıntılı gerekçe bölüm 3'teki trigger notundadır.
+--
+--    Doğrulayın — bu sorguyu insert'ten SONRA çalıştırın:
+--
+--      select id, role from public.profiles where id = 'BURAYA_UUID';
+--
+--    role 'admin' değil 'user' görünüyorsa, bu dosyanın güncel sürümünü
+--    (auth.uid() koşullu trigger'ları) henüz uygulamamışsınız demektir.
+--    Bölüm 3'teki iki "create or replace function" bloğunu çalıştırıp
+--    insert'i yineleyin.
 --
 -- 3) Authentication → Providers → Anonymous Sign-Ins açık olmalı:
 --    öğrenci gönderimleri anonim oturumla yapılır, her gönderinin yine de

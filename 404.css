@@ -1,0 +1,47 @@
+/* SosyoLab — 404 sayfası.
+   Ayrı dosya: katı Content-Security-Policy inline <style> bloğuna izin vermiyor. */
+
+:root {
+  --ink: #0F1B26;
+  --ivory: #F5F3ED;
+  --text: #17242F;
+  --text-2: #5C6B78;
+}
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--ivory);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  text-align: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+
+p { color: var(--text-2); margin: 0 0 20px; }
+
+a {
+  display: inline-block;
+  background: var(--ink);
+  color: #fff;
+  text-decoration: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+a:hover { background: #22333F; }
+
+a:focus-visible { outline: 2px solid #8A6113; outline-offset: 2px; }
+
+@media (max-width: 380px) {
+  h1 { font-size: 18px; }
+  a { display: block; }
+}

@@ -3,20 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Bu sayfanın hiç betiği yok; politika buna göre daraltıldı.
+     frame-ancestors <meta> CSP'de yok sayılır, bkz. docs/DEPLOYMENT-SECURITY.md -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  base-uri 'self';
+  style-src 'self';
+  img-src 'self' data:;
+  form-action 'none';
+  object-src 'none';
+  upgrade-insecure-requests
+">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="color-scheme" content="light">
 <title>Sayfa bulunamadı — SosyoLab</title>
-<style>
-  body { margin:0; min-height:100vh; display:grid; place-items:center; background:#F5F3ED; color:#17242F;
-         font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align:center; padding:24px; }
-  h1 { font-size:20px; font-weight:600; margin:0 0 8px; }
-  p { color:#5C6B78; margin:0 0 20px; }
-  a { display:inline-block; background:#0F1B26; color:#fff; text-decoration:none; padding:10px 18px; border-radius:6px; font-weight:500; }
-</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230F1B26'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='34' font-weight='700' text-anchor='middle' fill='%23D6A64A'%3ES%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="404.css">
 </head>
 <body>
-  <div>
+  <main>
     <h1>Bu adreste bir sayfa yok</h1>
     <p>Aradığın bağlantı taşınmış ya da hiç var olmamış olabilir.</p>
-    <a href="./">Arşive dön</a>
-  </div>
+    <a href="/">Arşive dön</a>
+  </main>
 </body>
 </html>
