@@ -206,6 +206,29 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    |---|---|
    | `supabase/migrations/001_davet_kodlari.sql` | Sunucu tarafında davet kodu doğrulaması; gönderim iznini doğrulanmış davete bağlar |
    | `supabase/migrations/002_denetim_kaydi.sql` | Yönetici işlemleri için değiştirilemez denetim kaydı |
+   | `supabase/migrations/003_launch_gate_hardening.sql` | Arşiv **okumasını** ve depo yüklemesini de davete bağlar; gönderimde dosya sahipliğini zorunlu kılar; başarısız gönderimin bıraktığı yetim dosyanın silinmesine izin verir |
+
+   > 003 olmadan davet kodu yalnızca bir gönderim kontrolüdür: anonim giriş
+   > açık olduğu için kodu bilmeyen biri de oturum açıp onaylı arşivin
+   > tamamını okuyabilir. Üretimde 003 zorunludur.
+   >
+   > 003, 001'deki `materials_gonderim` politikasını yeniden kurar. **001'i
+   > 003'ten sonra tekrar çalıştırmayın** — dosya sahipliği koşulu geri alınır.
+
+   **Göçten önce ve sonra** `supabase/inventory.sql` çalıştırılır — **mod
+   zorunludur**:
+
+   ```
+   psql "<baglanti>" -v mod=PRE  -f supabase/inventory.sql   # 003'ten önce
+   psql "<baglanti>" -v mod=POST -f supabase/inventory.sql   # 003'ten sonra
+   ```
+
+   **A–G bloklarının hepsi 0 satır döndürmelidir.** Politika adları doğru
+   olduğu hâlde gövdeleri değiştirilmiş olabilir; bunu yalnızca B bloğu
+   yakalar. Blok F moda göre SL-01/03/09'un kapalı ya da açık olmasını
+   doğrular. Blok K bilgi amaçlıdır ama okunmalıdır: `TRUNCATE` ayrıcalığı
+   RLS'i aşar ve ayrı bir göçle kapatılmalıdır.
+   Adım adım sıra: `docs/DEPLOYMENT-SECURITY.md` bölüm 11, FAZ 2.
 
    Sıra ve doğrulama adımları: `docs/DEPLOYMENT-SECURITY.md` bölüm 11.
 

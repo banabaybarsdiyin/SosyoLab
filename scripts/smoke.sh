@@ -42,7 +42,9 @@ assets/fonts/newsreader-latin-ext.subset.woff2"
 
 # Yayınlanmaması gereken yollar
 SIZINTI="/.env /.git/config /.git/HEAD /README.md /supabase/schema.sql
-/supabase/migrations/001_davet_kodlari.sql /docs/DEPLOYMENT-SECURITY.md
+/supabase/migrations/001_davet_kodlari.sql
+/supabase/migrations/003_launch_gate_hardening.sql /supabase/inventory.sql
+/docs/DEPLOYMENT-SECURITY.md
 /docs/LIVE-VALIDATION.md /.github/workflows/deploy.yml /app.js.map
 /styles.css.map /backup.sql /dump.sql /config.js.bak /scripts/smoke.sh"
 

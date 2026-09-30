@@ -375,7 +375,9 @@ Dashboard'dan elle doğrulanacaklar (depo kodundan görülemez):
       jeton sızıntısına yol açar.
 - [ ] **Authentication → Providers → Anonymous sign-ins**: açık olmalı
       (öğrenci gönderimleri buna dayanıyor). Göç 001 uygulandıktan sonra
-      anonim kullanıcı davet doğrulamadan hiçbir şey yazamaz.
+      anonim kullanıcı davet doğrulamadan hiçbir şey yazamaz; göç 003'ten
+      sonra **okuyamaz da**. 003 uygulanmadıysa bu ayar açıkken kodu
+      bilmeyen biri de onaylı arşivin tamamını okuyabilir.
 - [ ] **Authentication → Rate Limits**: varsayılanlar düşürülsün (bkz. 1.5).
 - [ ] **Database → Extensions**: `pgcrypto` etkin (göç 001 için gerekli).
 - [ ] **Storage → materyaller kovası**: `public = false`. Dashboard'dan
@@ -448,25 +450,128 @@ SHA-256: `8596965fe918e656600a1b568d3a168f5c0d3d22a600886bb6f44a6555db01e7`
 
 ## 11. Yayına alma sırası
 
-Bu sıra önemlidir; atlanan bir adım siteyi kırabilir.
+Bu sıra önemlidir; atlanan ya da yeri değişen bir adım siteyi kırabilir.
+İki faz vardır ve **ikisi karıştırılmamalıdır**.
 
-1. `supabase/migrations/001_davet_kodlari.sql` çalıştırılır.
-2. En az bir davet kodu tanımlanır (göç dosyası bölüm 6).
-3. `supabase/migrations/002_denetim_kaydi.sql` çalıştırılır.
-4. Yönetici hesabıyla giriş yapılıp onay kuyruğunun çalıştığı doğrulanır
-   (`INVITE_MODE` hâlâ `"local"`).
-5. `config.js` → `INVITE_MODE: "server"`, `LOCAL_INVITE_CODE` satırı **silinir**.
-6. Değişiklik yayınlanır; yeni bir tarayıcı profilinden öğrenci girişi
-   sunucu kodu ile denenir.
-7. Cloudflare proxy + başlıklar devreye alınır (bölüm 1).
-8. Başlıklar doğrulanır:
-   ```bash
-   curl -sSI https://arsiv.sosyolab.tr | grep -iE 'strict-transport|content-security|x-frame|x-content-type|referrer|permissions'
+### Kritik kural — dağıtım tetikleyicisi
+
+`.github/workflows/deploy.yml` **`push: branches: [main]`** ile tetiklenir.
+Yani:
+
+> **`app.js`'i yayına almak = `main`'e push etmek.**
+> "Önce app.js'i yayınla, sonra commit/push et" diye bir sıra YOKTUR;
+> push'un kendisi dağıtımdır.
+
+Bu yüzden veritabanı göçü push'tan **önce**, arayüz testleri push'tan
+**sonra** yapılır.
+
+### İki doğrulama türü — karıştırma
+
+| Tür | Nedir | Neye ihtiyaç duyar | Nerede |
+|---|---|---|---|
+| **VERİTABANI DOĞRULAMASI** | RLS/politika davranışı; tarayıcı konsolundan doğrudan Supabase API çağrıları | Yalnızca uygulanmış göç. **Yeni `app.js` GEREKMEZ** | `LIVE-VALIDATION.md` B, B.2, C bölümleri |
+| **ARAYÜZ DOĞRULAMASI** | Damgasız oturumun panele düşmemesi gibi arayüz davranışları | **Yayınlanmış yeni `app.js` GEREKİR** | `LIVE-VALIDATION.md` A, B.3 bölümleri |
+
+Veritabanı doğrulaması push'tan önce yapılabilir ve yapılmalıdır: bir sorun
+çıkarsa henüz hiçbir şey yayınlanmamış olur.
+
+---
+
+### FAZ 1 — İlk kurulum (bir kez; halihazırda tamamlandı)
+
+1. `supabase/schema.sql` çalıştırılır (bölüm 12).
+2. `supabase/migrations/001_davet_kodlari.sql` çalıştırılır.
+3. En az bir davet kodu tanımlanır (göç dosyası bölüm 6).
+4. `supabase/migrations/002_denetim_kaydi.sql` çalıştırılır.
+5. Yönetici hesabıyla giriş yapılıp onay kuyruğunun çalıştığı doğrulanır.
+6. `config.js` → `INVITE_MODE: "server"`, `LOCAL_INVITE_CODE` satırı **silinir**.
+
+---
+
+### FAZ 2 — Launch gate sertleştirmesi (003 + yeni `app.js`)
+
+Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
+
+1. **Envanter — göçten ÖNCE, `PRE` modunda.** `supabase/inventory.sql`
+   **mod zorunludur**:
    ```
-9. TLS taraması: <https://www.ssllabs.com/ssltest/analyze.html?d=arsiv.sosyolab.tr>
-   — hedef **A** ya da üstü.
-10. CSP ihlali olmadığı tarayıcı konsolundan doğrulanır.
-11. MFA (bölüm 5) ve zararlı yazılım taraması (bölüm 4) planlanır.
+   psql "<baglanti>" -v mod=PRE -f supabase/inventory.sql
+   ```
+   **A, B, C, D, E, F, G bloklarının HEPSİ 0 satır döndürmelidir.**
+
+   > **`mod` neden zorunlu:** envanterin tek modlu ilk sürümü 003 SONRASI
+   > durumu zorunlu kılıyordu, runbook ise onu 003'ten ÖNCE çalıştırıp
+   > "hepsi 0 satır" bekliyordu — mantıksal olarak imkânsız bir kapı.
+   > Canlı preflight bunu doğruladı (A'da 1, B'de 4 bulgu). Operatörün
+   > öğreneceği tek ders "kırmızıyı yok say" olurdu; tam olarak kaçınmak
+   > istediğimiz şey. `mod` verilmezse psql hata verip DURUR.
+   >
+   > `PRE` modunda blok F, SL-01/03/09 sertleştirmelerinin **hiçbirinin**
+   > uygulanmamış olduğunu doğrular; `POST` modunda **hepsinin** uygulanmış
+   > olduğunu. Simetrik olduğu için "kısmen uygulanmış" durumu da yakalar.
+
+2. **Sapma varsa DUR.** Satır dönen her blok, üretimde depoda izi olmayan bir
+   politika / gövde / RLS / GRANT sapması olduğunu gösterir. Açıklanmadan
+   3. adıma geçilmez. Özellikle B bloğu önemlidir: adı doğru olduğu hâlde
+   gövdesi `using (true)` yapılmış bir politikayı yalnızca o yakalar.
+
+   **Blok K ayrıca okunur** (kapıyı bloklamaz): `denetim_kaydi` ve
+   `davet_dogrulamalari` üzerinde `anon`/`authenticated` rollerinde kalan
+   `TRUNCATE` ayrıcalığını listeler. TRUNCATE **RLS'i aşar**; göç 001/002
+   yalnızca `insert, update, delete` revoke ettiği için geride kalmıştır.
+   Genel API yüzeyinden erişilemez (roller NOLOGIN, PostgREST TRUNCATE
+   üretmez) ama ayrı bir göçle kapatılmalıdır.
+3. **`supabase/migrations/003_launch_gate_hardening.sql` çalıştırılır.**
+   *Arşiv okumasını ve depo yüklemesini davet damgasına bağlar, gönderimde
+  dosya sahipliğini zorunlu kılar, yetim dosya temizliğini açar. Göç,
+  politikalara dokunmadan ÖNCE ön koşulları doğrular: `public.materials` ve
+  `storage.objects` var olmalı, ikisinde de RLS açık olmalı, ayrıca
+  `davet_dogrulandi_mi()`, `is_admin()` ve `storage.foldername()`
+  bulunmalıdır. Dosya tek bir transaction'dır: hata olursa hiçbir şey
+  değişmez.*
+4. **Envanter — göçten SONRA, `POST` modunda.**
+   ```
+   psql "<baglanti>" -v mod=POST -f supabase/inventory.sql
+   ```
+   A–G yine 0 satır dönmeli. Blok F artık beş sertleştirmenin **hepsinin**
+   uygulandığını doğrular: `materyal_yetim_silme` politikası ve
+   `dosya_materyale_bagli_mi` fonksiyonu var olmalı; `materials_okuma`,
+   `materyal_okuma` ve `materyal_yukleme` gövdelerinde `davet_dogrulandi_mi`,
+   `materials_gonderim` gövdesinde `foldername` geçmelidir. Blok H'deki ham
+   döküm depo dosyalarıyla gözle karşılaştırılır (blok B gerekli koşulu
+   denetler, tam gövde eşitliğini değil).
+5. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
+   B.2 (davetsiz oturum) ve C (Storage) çalıştırılır. Bunlar konsol/API
+   testleridir; **eski `app.js` ile çalışır.** Hepsi geçmeden ilerlenmez.
+6. **Depo değişiklikleri commit + push edilir** (`main`).
+7. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
+   "GitHub Pages'e yayınla" işinin yeşil olduğu doğrulanır. İş, gizli anahtar
+   taraması / inline betik denetimi / bağımlılık hash'i / yayın klasörü
+   doğrulaması kapılarını da çalıştırır.
+8. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
+9. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
+   bayt bayt yapar; bayat CDN önbelleği burada yakalanır).
+10. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
+    B.3 (UI-01…UI-03, damgasız oturum yönlendirmesi) çalıştırılır. **Bunlar
+    yeni `app.js` gerektirir, bu yüzden 7. adımdan sonradır.**
+11. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
+    test kullanıcıları, geçici davet kodu ve artık dosyalar silinir.
+12. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
+    ardından doğrulama:
+    ```bash
+    curl -sSI https://arsiv.sosyolab.tr | grep -iE 'strict-transport|content-security|x-frame|x-content-type|referrer|permissions'
+    ```
+    TLS taraması <https://www.ssllabs.com/ssltest/analyze.html?d=arsiv.sosyolab.tr>
+    (hedef **A** ya da üstü), CSP ihlali olmadığının konsoldan doğrulanması,
+    MFA (bölüm 5) ve zararlı yazılım taraması (bölüm 4).
+
+### Geri dönüş
+
+3. adım sorun çıkarırsa: `003` dosyasının sonundaki geri alma bloğu
+çalıştırılır (o da tek transaction'dır). 6. adım sorun çıkarırsa: önceki
+commit'e dönülüp push edilir; Pages eski `app.js`'i yeniden yayınlar.
+Veritabanı ve arayüzü birbirinden bağımsız geri alabilmek bu sıranın
+kazancıdır.
 
 ---
 
@@ -566,6 +671,26 @@ SQL Editor'de **sırayla**:
 3. `supabase/migrations/002_denetim_kaydi.sql` — tamamını çalıştır.
    *001'den sonra çalıştırılmalı, aksi hâlde davet damgası denetimi atlanır
    (dosya bunu NOTICE ile bildirir ve hata vermez).*
+
+4. `supabase/migrations/003_launch_gate_hardening.sql` — tamamını çalıştır.
+  *001'den sonra çalıştırılmalı; `public.materials` ve `storage.objects`
+  tabloları yoksa, bu tablolarda RLS açık değilse ya da
+  `davet_dogrulandi_mi()`, `is_admin()`, `storage.foldername()` yoksa dosya
+  en başta anlaşılır bir hata verip durur.
+   Bu göç **beş** politikayı yeniden kurar (`materials_okuma`,
+   `materials_gonderim`, `materyal_okuma`, `materyal_yukleme` ve yeni
+   `materyal_yetim_silme`); hiçbir veriye dokunmaz.*
+
+   **Dosya tek bir transaction'dır (`begin; … commit;`).** Bir hata olursa
+   tamamı geri alınır; politika düşmüş ama yenisi kurulmamış ara durum
+   oluşmaz. Bu ara durum test edildi: transaction olmadan aynı hata arşivi
+   **yönetici dahil** herkese kapatıyordu (12 politika, tüm roller 0 satır);
+   transaction ile hiçbir şey değişmedi (13 politika, erişim aynı).
+
+   **UYARI — göç sırası:** 003, 001'deki `materials_gonderim` politikasını
+   yeniden kurar. **003'ten sonra 001'i tekrar çalıştırırsanız** gönderimdeki
+   dosya sahipliği koşulu geri alınır ve SL-09 yeniden açılır.
+   `supabase/inventory.sql` B bloğu bu durumu yakalar.
 
 Doğrula:
 

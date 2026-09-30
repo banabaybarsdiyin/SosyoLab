@@ -461,6 +461,9 @@
     Array.isArray(v) ? v.filter((x) => typeof x === "string" && x).slice(0, 200) : [];
 
   async function yukle() {
+    /* Oturum vardı ama davet damgası yoktu: giriş ekranında açıklama gösterilir. */
+    let davetsizOturum = false;
+
     const [mat, oturum, fav, son] = await Promise.all([
       oku("sosyolab:materyaller"), oku("sosyolab:oturum"),
       oku("sosyolab:favoriler"), oku("sosyolab:son")
@@ -497,6 +500,26 @@
             .select("id, role, display_name, student_number").eq("id", BULUT.uid).maybeSingle();
           if (!pr.error && pr.data) BULUT.profil = pr.data;
           state.oturum = bulutOturumuKur(yerel);
+
+          /* Damgası olmayan oturum panele alınmaz. Göç 003'ten sonra arşiv
+             okuması RLS'te davet damgasına bağlı; damgasız bir oturum panele
+             düşerse kullanıcı BOŞ bir arşiv görür ve nedenini anlamaz. Bu
+             durum gerçekten oluşabiliyor: bulutOturumAc() profili anonim
+             girişin hemen ardından, davet doğrulanmadan ÖNCE oluşturuyor —
+             kullanıcı kodu girmeden sekmeyi kapatırsa geride tam da böyle bir
+             oturum kalıyor.
+
+             Supabase oturumu BİLİNÇLİ olarak kapatılmıyor: kullanıcı kodu
+             girdiğinde ogrenciGirisi() mevcut anonim kimliği yeniden kullanıp
+             damgayı ona basar. Oturumu kapatmak her denemede yeni bir anonim
+             auth.users satırı bırakırdı.
+
+             Bu bir YETKİ KONTROLÜ DEĞİLDİR — erişimi kesen şey RLS'tir.
+             Buradaki tek iş kullanıcıyı davet ekranına geri almak. */
+          if (state.oturum && state.oturum.rol !== "admin" && !(await davetDamgasiVarMi())) {
+            state.oturum = null;
+            davetsizOturum = true;
+          }
         }
         if (state.oturum) {
           await yaz("sosyolab:oturum", state.oturum);
@@ -519,6 +542,10 @@
     }
 
     if (state.oturum && state.oturum.sinif) state.nav.sinif = state.oturum.sinif;
+
+    if (davetsizOturum) {
+      state.hata = "Arşive girmek için davet kodunu doğrulaman gerekiyor.";
+    }
 
     state.hazir = true;
   }
@@ -998,6 +1025,29 @@
     await oturumAc({ no: no, ad: ad, rol: r.rol, sinif: null });
     await bulutYenile();
     return ciz();
+  }
+
+  /* Bu oturumun davet damgası var mı — public.davet_dogrulandi_mi() sorar.
+     Damga tablosunu istemci okumak zorunda kalmasın diye RPC kullanılır;
+     dönen değer tek bir boolean'dır.
+
+     BU BİR YETKİ KONTROLÜ DEĞİLDİR. Arşiv okuma, gönderim ve dosya erişimi
+     RLS politikalarında davet damgasına bağlıdır; burada "true" dönmesi
+     hiçbir kapıyı açmaz. Tek kullanım yeri arayüz yönlendirmesi.
+
+     Hata durumunda BİLİNÇLİ olarak true döner: geçici bir ağ sorunu ya da
+     RPC'ye erişilemeyen bir an, oturumu açık olan bir kullanıcıyı giriş
+     ekranına atmamalı. Yanlış tarafa düşmenin maliyeti burada yalnızca boş
+     bir arşiv görüntüsüdür, yetki kaybı ya da kazancı değildir. */
+  async function davetDamgasiVarMi() {
+    if (!BULUT.etkin || !DAVET_SUNUCUDA) return true;
+    try {
+      const r = await BULUT.istemci.rpc("davet_dogrulandi_mi");
+      if (r.error) return true;
+      return r.data !== false;
+    } catch (e) {
+      return true;
+    }
   }
 
   /* Davet kodunu doğrular. Sunucu modunda kod yalnızca Supabase'e gider ve
