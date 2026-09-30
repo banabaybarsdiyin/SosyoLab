@@ -286,9 +286,10 @@ select n.nspname as sema, c.relname as tablo,
 --
 -- Beklenen:
 --   anon          → HİÇBİR tabloda hiçbir izin
---   authenticated → profiles / materials: SELECT, INSERT, UPDATE, DELETE
+--   authenticated → profiles: SELECT, INSERT, UPDATE
+--                   materials: SELECT, INSERT, UPDATE, DELETE
 --                   davet_dogrulamalari: HİÇBİRİ (RPC mimarisi — aşağıdaki not)
---                   denetim_kaydi: SELECT — tasarlanmış ama üretimde YOK (blok K)
+--                   denetim_kaydi: HİÇBİRİ (doğrudan istemci SELECT tasarlanmamıştır)
 --                   davet_kodlari / davet_denemeleri: HİÇBİRİ
 --
 -- 0 satır beklenir.
@@ -301,11 +302,10 @@ with sozlesme(table_name, grantee, privilege_type, durum) as (
     ('profiles',            'authenticated', 'SELECT',     'ZORUNLU'),
     ('profiles',            'authenticated', 'INSERT',     'ZORUNLU'),
     ('profiles',            'authenticated', 'UPDATE',     'ZORUNLU'),
-    ('profiles',            'authenticated', 'DELETE',     'ZORUNLU'),
     ('materials',           'authenticated', 'SELECT',     'ZORUNLU'),
     ('materials',           'authenticated', 'INSERT',     'ZORUNLU'),
     ('materials',           'authenticated', 'UPDATE',     'ZORUNLU'),
-    ('materials',           'authenticated', 'DELETE',     'ZORUNLU'),
+    ('materials',           'authenticated', 'DELETE',     'ZORUNLU')
     -- ----------------------------------------------------------------------
     -- davet_dogrulamalari — İSTEMCİ SELECT'İ BİLİNÇLİ OLARAK LİSTEDE YOK.
     -- Damga durumunu istemci tablodan değil public.davet_dogrulandi_mi()
@@ -318,36 +318,10 @@ with sozlesme(table_name, grantee, privilege_type, durum) as (
     -- ikinci savunma katmanıdır. Bu yüzden blok A'da beklenen politikalar
     -- arasında KALIR. Ayrıntı: blok K.
     -- ----------------------------------------------------------------------
-    -- ----------------------------------------------------------------------
-    -- TOLERE_EKSIK — sözleşmede tasarlanmış ama üretimde yok. Kapıyı
-    -- BLOKLAMAZ: eksik grant fail-closed yönündedir (erişimi daraltır,
-    -- genişletmez), dolayısıyla güvenlik bulgusu değildir. Blok K'da her
-    -- koşumda raporlanır ve karar bekler.
-    -- ----------------------------------------------------------------------
-    ('denetim_kaydi',       'authenticated', 'SELECT',     'TOLERE_EKSIK'),
-    -- ----------------------------------------------------------------------
-    -- TOLERE_FAZLA — BİLİNEN TEMEL BOŞLUK: sürüklenme (drift) DEĞİL, deponun
-    -- kendi sonucu. Göç 001 ve 002 yalnızca "revoke insert, update, delete"
-    -- yaptı; Supabase'in "grant all" varsayılanından TRUNCATE / REFERENCES /
-    -- TRIGGER geride kaldı. Kapıyı BLOKLAMASIN diye tolere ediliyor, ama blok
-    -- K'da her koşumda AYRICA raporlanıyor ve düzeltme SQL'i orada veriliyor.
-    -- Gerekçe: TRUNCATE gerçek bir boşluktur (RLS'i aşar) ama genel API
-    -- yüzeyinden erişilemez (anon/authenticated NOLOGIN'dir, PostgREST TRUNCATE
-    -- üretmez). 003'ü bu yüzden bloklamak, iki HIGH bulguyu kapatan göçü
-    -- gecikmiş bir MEDIUM için erteletmek olurdu.
-    -- ----------------------------------------------------------------------
-    ('davet_dogrulamalari', 'anon',          'TRUNCATE',   'TOLERE_FAZLA'),
-    ('davet_dogrulamalari', 'anon',          'REFERENCES', 'TOLERE_FAZLA'),
-    ('davet_dogrulamalari', 'anon',          'TRIGGER',    'TOLERE_FAZLA'),
-    ('davet_dogrulamalari', 'authenticated', 'TRUNCATE',   'TOLERE_FAZLA'),
-    ('davet_dogrulamalari', 'authenticated', 'REFERENCES', 'TOLERE_FAZLA'),
-    ('davet_dogrulamalari', 'authenticated', 'TRIGGER',    'TOLERE_FAZLA'),
-    ('denetim_kaydi',       'anon',          'TRUNCATE',   'TOLERE_FAZLA'),
-    ('denetim_kaydi',       'anon',          'REFERENCES', 'TOLERE_FAZLA'),
-    ('denetim_kaydi',       'anon',          'TRIGGER',    'TOLERE_FAZLA'),
-    ('denetim_kaydi',       'authenticated', 'TRUNCATE',   'TOLERE_FAZLA'),
-    ('denetim_kaydi',       'authenticated', 'REFERENCES', 'TOLERE_FAZLA'),
-    ('denetim_kaydi',       'authenticated', 'TRIGGER',    'TOLERE_FAZLA')
+    -- denetim_kaydi — K.2 kararı KAPANDI (SEÇENEK B): doğrudan istemci
+    -- SELECT tasarlanmış değildir. denetim_okuma politikası savunma-in-depth
+    -- olarak korunur; authenticated SELECT sözleşmede BEKLENMEZ. İleride grant
+    -- ortaya çıkarsa bu blokta BEKLENMEYEN ETKİN AYRICALIK olarak raporlanır.
 ),
 hedef_tablolar(table_name) as (
   values
@@ -782,7 +756,7 @@ select count(*) as yetim_dosya_sayisi,
 
 
 -- ############################################################################
--- K. BİLİNEN AYRICALIK BOŞLUKLARI — TRUNCATE + EKSİK GRANT (ZORUNLU OKUMA)
+-- K. KALINTI AYRICALIK KONTROLÜ — 004 SONRASI 0 SATIR BEKLENİR
 -- ############################################################################
 --
 -- Bu blok kapıyı bloklamaz ama HER KOŞUMDA okunmalıdır.
@@ -806,8 +780,7 @@ select count(*) as yetim_dosya_sayisi,
 -- derinlik boşluğudur: ileride dinamik SQL kullanan bir SECURITY INVOKER
 -- fonksiyon ya da yeni bir RPC eklenirse doğrudan sömürülebilir hâle gelir.
 --
--- DÜZELTME (ayrı bir göçte, 003'ün kapsamı dışında — bilinçli olarak burada
--- çalıştırılmıyor, bu dosya salt okumadır):
+-- DÜZELTME (forward-only göç 004; bu dosya salt okumadır, burada çalışmaz):
 --
 --   revoke truncate, references, trigger
 --     on table public.denetim_kaydi, public.davet_dogrulamalari
@@ -816,57 +789,20 @@ select count(*) as yetim_dosya_sayisi,
 -- Satır dönerse boşluk hâlâ açıktır.
 --
 -- ############################################################################
--- K.2 — İKİNCİ BOŞLUK: TASARLANMIŞ AMA ÜRETİMDE OLMAYAN GRANT
+-- K.2 — KARAR KAPANDI (SEÇENEK B)
 -- ############################################################################
 --
--- SORUN: blok D'nin ilk sürümü yalnızca FAZLA grant'i görüyordu; EKSİK
--- grant sessizce geçiyordu. Canlı B bölümü koşumu bunu ortaya çıkardı:
--- INVITE-05 üretimde 403 (42501) aldı, çünkü authenticated'ın
--- davet_dogrulamalari üzerinde SELECT ayrıcalığı YOKTU — envanter ise
--- o grant'i "tasarlanmış" saydığı hâlde yeşil yanıyordu. Blok D artık iki
--- yönlü; bu blok kalan KARAR BEKLEYEN eksikleri listeler.
+-- Karar: public.denetim_kaydi için authenticated role doğrudan SELECT grant
+-- BEKLENMEZ. Uygulama doğrudan bu tabloyu okumaz; denetim_okuma RLS politikası
+-- savunma-in-depth olarak korunur.
 --
--- NEDEN BLOKLAMAZ: eksik grant fail-closed yönündedir. Erişimi daraltır,
--- genişletmez; hiçbir veri sızdırmaz. Güvenlik bulgusu değil, sözleşme
--- tutarsızlığıdır. Yine de her koşumda okunmalıdır: sözleşme ile üretim
--- ayrı şeyler söylüyorsa biri yanlıştır.
+-- Sözleşme etkisi:
+--   * denetim_kaydi / authenticated / SELECT sözleşmede YOKTUR.
+--   * Grant ileride verilirse blok D bunu BEKLENMEYEN ETKİN AYRICALIK olarak
+--     raporlar.
 --
--- AÇIK KARAR MADDESİ — denetim_kaydi / authenticated / SELECT
--- ----------------------------------------------------------------------------
--- DURUM: Göç 002 tabloyu "yalnızca admin okur" diye belgeliyor ve denetim_okuma
--- politikasını (using is_admin()) tanımlıyor; ama app.js denetim kaydını HİÇ
--- okumuyor (yönetici paneli dahil — AUDIT-01 SQL Editor ile doğrulanıyor) ve
--- üretimde authenticated'ın SELECT ayrıcalığı yok. Mimari tutarsızlık açıktır.
---
--- BU GÖREVDE KARAR VERİLMEDİ. Ürün kararıdır ve iki çıkışı vardır:
---
---   A. Yönetici arayüzüne doğrudan denetim okuması gerekiyorsa:
---      AYRI ve ayrıca gözden geçirilmiş, İLERİ YÖNLÜ yeni bir göçle uygulanır
---      (002 DÜZENLENMEZ):
---        grant select on table public.denetim_kaydi to authenticated;
---      RLS zaten admin ile sınırlar; grant tek başına yeterli değil, politika
---      da yerinde kalmalıdır.
---
---   B. Doğrudan istemci denetim okuması hiç amaçlanmıyorsa:
---      002'nin "yalnızca admin okur" ifadesi ve bu sözleşme satırı AYRI ve
---      gözden geçirilmiş bir değişiklikle hizalanır; denetim_okuma politikası
---      bilinçli ikinci savunma katmanı olarak belgelenir ya da ileri yönlü bir
---      göçle kaldırılır.
---
--- SESSİZCE KAYBOLAMAZ — neden bu sorgu ayrıcalık durumuna BAKMADAN raporluyor:
--- İlk tasarımda satır yalnızca "has_table_privilege false" iken görünüyordu.
--- O hâlde biri üretimde grant'i verdiğinde madde listeden sessizce düşer, blok
--- D de onu sözleşmede (TOLERE_EKSIK) bulduğu için raporlamaz — yani tutarsızlık
--- hiç karara bağlanmadan görünmez olurdu. Artık madde HİÇBİR durumda
--- kaybolmaz: eksikse "KARAR BEKLİYOR", verilmişse "A UYGULANMIŞ GİBİ —
--- sözleşme güncellenmeli" olarak döner. Listeden çıkmasının TEK yolu aşağıdaki
--- K.2 sorgusundaki values listesinden elle çıkarılmasıdır — yani gözden
--- geçirilmiş bilinçli bir değişiklik.
---
--- davet_dogrulamalari / authenticated / SELECT bu listede YOKTUR: mimari kararı
--- verildi (RPC yolu), sözleşmeden çıkarıldı, üretim doğru kabul edildi. Grant
--- ileride belirirse blok D onu BEKLENMEYEN GRANT olarak yakalar. Bkz. blok
--- D'deki not ve docs/LIVE-VALIDATION.md INVITE-05 / INVITE-05b.
+-- Not: davet_dogrulamalari / authenticated / SELECT zaten bilinçli olarak
+-- sözleşme dışındadır (RPC yolu). INVITE-05 / INVITE-05b ile doğrulanır.
 
 select g.table_name, g.grantee, g.privilege_type,
        'RLS''i aşar — yukarıdaki revoke ile kapatılmalı' as not
@@ -876,21 +812,6 @@ select g.table_name, g.grantee, g.privilege_type,
    and g.privilege_type in ('TRUNCATE', 'REFERENCES', 'TRIGGER')
    and g.table_name in ('profiles', 'materials', 'davet_kodlari',
                         'davet_dogrulamalari', 'davet_denemeleri', 'denetim_kaydi')
-union all
--- K.2 — AÇIK KARAR MADDELERİ. Ayrıcalık durumundan BAĞIMSIZ raporlanır:
--- maddenin listeden düşmesinin tek yolu bu listeden çıkarılmasıdır.
-select k.tablo, k.rol, k.ayricalik,
-       case
-         when has_table_privilege(k.rol, 'public.' || k.tablo, k.ayricalik)
-           then 'K.2 KARAR MADDESİ — grant ARTIK VAR (seçenek A uygulanmış gibi): '
-                || 'sözleşme ve 002 belgesi güncellenmeli'
-         else 'K.2 KARAR MADDESİ — tasarlanmış ama üretimde YOK: '
-                || 'seçenek A ya da B seçilmeli (karar bekliyor)'
-       end as not
-  from (values
-          ('denetim_kaydi', 'authenticated', 'SELECT')
-       ) k(tablo, rol, ayricalik)
- where to_regclass('public.' || k.tablo) is not null
  order by 1, 2, 3;
 
 

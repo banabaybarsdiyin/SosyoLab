@@ -207,6 +207,7 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    | `supabase/migrations/001_davet_kodlari.sql` | Sunucu tarafında davet kodu doğrulaması; gönderim iznini doğrulanmış davete bağlar |
    | `supabase/migrations/002_denetim_kaydi.sql` | Yönetici işlemleri için değiştirilemez denetim kaydı |
    | `supabase/migrations/003_launch_gate_hardening.sql` | Arşiv **okumasını** ve depo yüklemesini de davete bağlar; gönderimde dosya sahipliğini zorunlu kılar; başarısız gönderimin bıraktığı yetim dosyanın silinmesine izin verir |
+   | `supabase/migrations/004_revoke_public_table_ddl_privs.sql` | Residual hardening: `denetim_kaydi` ve `davet_dogrulamalari` üzerinde `anon/authenticated` için `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır |
 
    > 003 olmadan davet kodu yalnızca bir gönderim kontrolüdür: anonim giriş
    > açık olduğu için kodu bilmeyen biri de oturum açıp onaylı arşivin
@@ -227,7 +228,9 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    olduğu hâlde gövdeleri değiştirilmiş olabilir; bunu yalnızca B bloğu
    yakalar. Blok F moda göre SL-01/03/09'un kapalı ya da açık olmasını
    doğrular. Blok K bilgi amaçlıdır ama okunmalıdır: `TRUNCATE` ayrıcalığı
-   RLS'i aşar ve ayrı bir göçle kapatılmalıdır.
+   RLS'i aşar ve 003 `POST` gate geçildikten sonra 004 ile kapatılmalıdır.
+   K.2 kararı Seçenek B'dir: `denetim_kaydi` için authenticated'a doğrudan
+   `SELECT` grant tasarlanmamıştır.
    Adım adım sıra: `docs/DEPLOYMENT-SECURITY.md` bölüm 11, FAZ 2.
 
    Sıra ve doğrulama adımları: `docs/DEPLOYMENT-SECURITY.md` bölüm 11.

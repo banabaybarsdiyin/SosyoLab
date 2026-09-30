@@ -488,7 +488,7 @@ Veritabanı doğrulaması push'tan önce yapılabilir ve yapılmalıdır: bir so
 
 ---
 
-### FAZ 2 — Launch gate sertleştirmesi (003 + yeni `app.js`)
+### FAZ 2 — Launch gate sertleştirmesi (003 + 004 + yeni `app.js`)
 
 Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
 
@@ -515,12 +515,12 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
    3. adıma geçilmez. Özellikle B bloğu önemlidir: adı doğru olduğu hâlde
    gövdesi `using (true)` yapılmış bir politikayı yalnızca o yakalar.
 
-   **Blok K ayrıca okunur** (kapıyı bloklamaz): `denetim_kaydi` ve
+    **Blok K ayrıca okunur** (kapıyı bloklamaz): `denetim_kaydi` ve
    `davet_dogrulamalari` üzerinde `anon`/`authenticated` rollerinde kalan
    `TRUNCATE` ayrıcalığını listeler. TRUNCATE **RLS'i aşar**; göç 001/002
    yalnızca `insert, update, delete` revoke ettiği için geride kalmıştır.
    Genel API yüzeyinden erişilemez (roller NOLOGIN, PostgREST TRUNCATE
-   üretmez) ama ayrı bir göçle kapatılmalıdır.
+    üretmez) ama ayrı bir göçle kapatılmalıdır.
 3. **`supabase/migrations/003_launch_gate_hardening.sql` çalıştırılır.**
    *Arşiv okumasını ve depo yüklemesini davet damgasına bağlar, gönderimde
   dosya sahipliğini zorunlu kılar, yetim dosya temizliğini açar. Göç,
@@ -540,23 +540,34 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
    `materials_gonderim` gövdesinde `foldername` geçmelidir. Blok H'deki ham
    döküm depo dosyalarıyla gözle karşılaştırılır (blok B gerekli koşulu
    denetler, tam gövde eşitliğini değil).
-5. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
+5. **Residual privilege hardening — `004_revoke_public_table_ddl_privs.sql`.**
+    003 `POST` gate geçtikten sonra uygulanır; kapsamı yalnızca
+    `public.denetim_kaydi` ve `public.davet_dogrulamalari` tablolarında
+    `anon/authenticated` için `TRUNCATE, REFERENCES, TRIGGER` revoke etmektir.
+
+    Karar notu (K.2 = Seçenek B): `public.denetim_kaydi` üzerinde
+    `authenticated` için doğrudan `SELECT` grant TASARLANMAMIŞTIR.
+    `denetim_okuma` politikası savunma-in-depth olarak kalır.
+
+    004 sonrası envanterde Blok K için beklenen sonuç: **0 satır**.
+
+6. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
    B.2 (davetsiz oturum) ve C (Storage) çalıştırılır. Bunlar konsol/API
    testleridir; **eski `app.js` ile çalışır.** Hepsi geçmeden ilerlenmez.
-6. **Depo değişiklikleri commit + push edilir** (`main`).
-7. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
+7. **Depo değişiklikleri commit + push edilir** (`main`).
+8. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
    "GitHub Pages'e yayınla" işinin yeşil olduğu doğrulanır. İş, gizli anahtar
    taraması / inline betik denetimi / bağımlılık hash'i / yayın klasörü
    doğrulaması kapılarını da çalıştırır.
-8. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
-9. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
+9. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
+10. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
    bayt bayt yapar; bayat CDN önbelleği burada yakalanır).
-10. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
+11. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
     B.3 (UI-01…UI-03, damgasız oturum yönlendirmesi) çalıştırılır. **Bunlar
-    yeni `app.js` gerektirir, bu yüzden 7. adımdan sonradır.**
-11. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
+    yeni `app.js` gerektirir, bu yüzden 8. adımdan sonradır.**
+12. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
     test kullanıcıları, geçici davet kodu ve artık dosyalar silinir.
-12. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
+13. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
     ardından doğrulama:
     ```bash
     curl -sSI https://arsiv.sosyolab.tr | grep -iE 'strict-transport|content-security|x-frame|x-content-type|referrer|permissions'
@@ -568,7 +579,7 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
 ### Geri dönüş
 
 3. adım sorun çıkarırsa: `003` dosyasının sonundaki geri alma bloğu
-çalıştırılır (o da tek transaction'dır). 6. adım sorun çıkarırsa: önceki
+çalıştırılır (o da tek transaction'dır). 7. adım sorun çıkarırsa: önceki
 commit'e dönülüp push edilir; Pages eski `app.js`'i yeniden yayınlar.
 Veritabanı ve arayüzü birbirinden bağımsız geri alabilmek bu sıranın
 kazancıdır.
@@ -691,6 +702,14 @@ SQL Editor'de **sırayla**:
    yeniden kurar. **003'ten sonra 001'i tekrar çalıştırırsanız** gönderimdeki
    dosya sahipliği koşulu geri alınır ve SL-09 yeniden açılır.
    `supabase/inventory.sql` B bloğu bu durumu yakalar.
+
+5. `supabase/migrations/004_revoke_public_table_ddl_privs.sql` — tamamını çalıştır.
+  *Residual hardening adımıdır: `public.denetim_kaydi` ve
+  `public.davet_dogrulamalari` tablolarında `anon`/`authenticated` için
+  `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır.*
+  *K.2 kararı Seçenek B'dir: `denetim_kaydi` için authenticated'a doğrudan
+  `SELECT` grant tasarlanmaz; `denetim_okuma` politikası savunma-in-depth
+  olarak kalır.*
 
 Doğrula:
 
