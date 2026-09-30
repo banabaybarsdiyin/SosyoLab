@@ -883,9 +883,26 @@
   }
 
   async function imzaliBaglanti(yol) {
-    if (!BULUT.etkin) return "";
+    if (!BULUT.etkin) {
+      return { url: "", hataKodu: "BULUT_KAPALI", hataMesaji: "Sunucu bağlantısı yok." };
+    }
     const r = await BULUT.istemci.storage.from("materyaller").createSignedUrl(yol, 300);
-    return (!r.error && r.data && guvenliUrl(r.data.signedUrl)) || "";
+    if (r.error) {
+      return {
+        url: "",
+        hataKodu: r.error.code || "SIGNED_URL_HATASI",
+        hataMesaji: r.error.message || "İmzalı bağlantı üretilemedi."
+      };
+    }
+    const guvenli = (r.data && guvenliUrl(r.data.signedUrl)) || "";
+    if (!guvenli) {
+      return {
+        url: "",
+        hataKodu: "GUVENSIZ_URL",
+        hataMesaji: "İmzalı bağlantı güvenlik doğrulamasını geçemedi."
+      };
+    }
+    return { url: guvenli, hataKodu: "", hataMesaji: "" };
   }
 
   /* ---------- giriş ---------- */
@@ -1746,17 +1763,26 @@
   }
 
   /* Yeni sekme kullanıcı tıklamasıyla aynı anda açılır; imzalı adres
-     geldiğinde içine yüklenir. Aksi hâlde await sonrasındaki window.open
-     tarayıcı tarafından açılır pencere engelleyiciye takılır. */
+     geldiğinde AYNI sekme içine yüklenir. Böylece await sonrasında ikinci
+     window.open çağrısına ihtiyaç kalmaz ve popup engelleyiciye takılmaz. */
   async function imzaliAdreseGit(yol, hataMesaji) {
-    const sekme = window.open("", "_blank", "noopener,noreferrer");
-    const url = await imzaliBaglanti(yol);
-    if (!url) {
+    const sekme = window.open("about:blank", "_blank");
+    if (sekme) {
+      try { sekme.opener = null; } catch (e) { /* yok sayılır */ }
+    }
+
+    const sonuc = await imzaliBaglanti(yol);
+    if (!sonuc.url) {
       if (sekme) { try { sekme.close(); } catch (e) { /* yok sayılır */ } }
       return bildir(hataMesaji);
     }
-    if (sekme) sekme.location = url;
-    else window.open(url, "_blank", "noopener,noreferrer");
+
+    if (!sekme) {
+      return bildir("Tarayıcı yeni sekmeyi engelledi. Açılır pencerelere izin ver.");
+    }
+
+    try { sekme.location.replace(sonuc.url); }
+    catch (e) { sekme.location.href = sonuc.url; }
   }
 
   async function onizle(id) {
