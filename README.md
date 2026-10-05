@@ -213,10 +213,10 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    | `supabase/migrations/001_davet_kodlari.sql` | Sunucu tarafında davet kodu doğrulaması; gönderim iznini doğrulanmış davete bağlar |
    | `supabase/migrations/002_denetim_kaydi.sql` | Yönetici işlemleri için değiştirilemez denetim kaydı |
    | `supabase/migrations/003_launch_gate_hardening.sql` | Arşiv **okumasını** ve depo yüklemesini de davete bağlar; gönderimde dosya sahipliğini zorunlu kılar; başarısız gönderimin bıraktığı yetim dosyanın silinmesine izin verir |
-   | `supabase/migrations/004_teacher_role.sql` | `teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için ders-sahipliği kontrollü doğrudan yayın akışı |
+   | `supabase/migrations/005_teacher_role.sql` | `teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için ders-sahipliği kontrollü doğrudan yayın akışı |
    | `supabase/migrations/004_revoke_public_table_ddl_privs.sql` | Residual hardening: `denetim_kaydi` ve `davet_dogrulamalari` üzerinde `anon/authenticated` için `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır |
 
-   Önerilen uygulama sırası: `001` → `002` → `003` → `004_teacher_role` → `004_revoke_public_table_ddl_privs`.
+   Önerilen uygulama sırası: `001` → `002` → `003` → `004_revoke_public_table_ddl_privs` → `005_teacher_role`.
 
    Öğretim elemanı hesabı ve ders ataması için: `docs/TEACHER-SETUP.md`.
 

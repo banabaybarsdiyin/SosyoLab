@@ -635,7 +635,7 @@ with repo_fonksiyonlari(ad) as (
     -- schema.sql
     ('is_admin'), ('profiles_rol_koru'), ('profiles_rol_varsayilan'),
     ('materials_inceleme_damgala'),
-    -- göç 004 (teacher)
+    -- göç 005 (teacher)
     ('is_teacher'), ('teacher_has_course'),
     ('teacher_courses_teacher_koru'), ('materials_gonderim_durumunu_ata'),
     -- göç 001
@@ -782,7 +782,7 @@ select count(*) as yetim_dosya_sayisi,
 
 
 -- ############################################################################
--- K. KALINTI AYRICALIK KONTROLÜ — 004 SONRASI 0 SATIR BEKLENİR
+-- K. KALINTI AYRICALIK KONTROLÜ — 004_revoke SONRASI 0 SATIR BEKLENİR
 -- ############################################################################
 --
 -- Bu blok kapıyı bloklamaz ama HER KOŞUMDA okunmalıdır.

@@ -18,17 +18,22 @@ Supabase Dashboard > Authentication > Users üzerinden kullanıcıyı oluştur:
 
 Not: Bu adım sonunda oluşan UID, `auth.users.id` değeridir.
 
-## 2) Profile rolünü `teacher` yap
+## 2) Profile kaydını güvenli şekilde teacher yap
 
 Aşağıdaki SQL'i Supabase SQL Editor'de çalıştır:
 
 ```sql
 -- UUID gerçek auth.users UID olacak
-update public.profiles
-set role = 'teacher',
-    display_name = 'Öğretim Elemanı Adı'
-where id = '<TEACHER_UUID>';
+-- Not: auth.users'a INSERT yapılmaz; yalnızca public.profiles upsert edilir.
+insert into public.profiles (id, role, display_name)
+values ('<TEACHER_UUID>', 'teacher', 'Öğretim Elemanı Adı')
+on conflict (id) do update
+set role = excluded.role,
+    display_name = excluded.display_name
+returning id, role, display_name;
 ```
+
+Bu yöntem, profile satırı yoksa oluşturur; varsa teacher rolüne günceller.
 
 ## 3) Ders atamalarını gir
 

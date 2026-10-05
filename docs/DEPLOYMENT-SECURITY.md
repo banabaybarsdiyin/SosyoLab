@@ -540,13 +540,7 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
    `materials_gonderim` gövdesinde `foldername` geçmelidir. Blok H'deki ham
    döküm depo dosyalarıyla gözle karşılaştırılır (blok B gerekli koşulu
    denetler, tam gövde eşitliğini değil).
-5. **Teacher role migration — `004_teacher_role.sql`.**
-  `profiles.role` kümesi `teacher` ile genişler, `teacher_courses` tablosu
-  ve öğretim elemanı için doğrudan yayın (server-side trigger) akışı kurulur.
-  Bu adımda policy/fonksiyonlar güncellendiği için ardından envanter tekrar
-  çalıştırılır.
-
-6. **Residual privilege hardening — `004_revoke_public_table_ddl_privs.sql`.**
+5. **Residual privilege hardening — `004_revoke_public_table_ddl_privs.sql`.**
     003 `POST` gate geçtikten sonra uygulanır; kapsamı yalnızca
     `public.denetim_kaydi` ve `public.davet_dogrulamalari` tablolarında
     `anon/authenticated` için `TRUNCATE, REFERENCES, TRIGGER` revoke etmektir.
@@ -556,6 +550,12 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
     `denetim_okuma` politikası savunma-in-depth olarak kalır.
 
     004 sonrası envanterde Blok K için beklenen sonuç: **0 satır**.
+
+6. **Teacher role migration — `005_teacher_role.sql`.**
+  `profiles.role` kümesi `teacher` ile genişler, `teacher_courses` tablosu
+  ve öğretim elemanı için doğrudan yayın (server-side trigger) akışı kurulur.
+  Bu adımda policy/fonksiyonlar güncellendiği için ardından envanter tekrar
+  çalıştırılır.
 
 7. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
    B.2 (davetsiz oturum) ve C (Storage) çalıştırılır. Bunlar konsol/API
@@ -709,17 +709,17 @@ SQL Editor'de **sırayla**:
    dosya sahipliği koşulu geri alınır ve SL-09 yeniden açılır.
    `supabase/inventory.sql` B bloğu bu durumu yakalar.
 
-5. `supabase/migrations/004_teacher_role.sql` — tamamını çalıştır.
-  *`teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için
-  ders-sahipliği kontrollü doğrudan yayın akışını ekler.*
-
-6. `supabase/migrations/004_revoke_public_table_ddl_privs.sql` — tamamını çalıştır.
+5. `supabase/migrations/004_revoke_public_table_ddl_privs.sql` — tamamını çalıştır.
   *Residual hardening adımıdır: `public.denetim_kaydi` ve
   `public.davet_dogrulamalari` tablolarında `anon`/`authenticated` için
   `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır.*
   *K.2 kararı Seçenek B'dir: `denetim_kaydi` için authenticated'a doğrudan
   `SELECT` grant tasarlanmaz; `denetim_okuma` politikası savunma-in-depth
   olarak kalır.*
+
+6. `supabase/migrations/005_teacher_role.sql` — tamamını çalıştır.
+  *`teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için
+  ders-sahipliği kontrollü doğrudan yayın akışını ekler.*
 
 Doğrula:
 

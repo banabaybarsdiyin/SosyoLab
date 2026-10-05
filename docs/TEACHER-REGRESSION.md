@@ -2,6 +2,8 @@
 
 Bu dosya, teacher özelliği için eklenen regresyon setini toplar.
 
+Migration karşılığı: `supabase/migrations/005_teacher_role.sql`
+
 ## Otomatik koşular
 
 ### Frontend
