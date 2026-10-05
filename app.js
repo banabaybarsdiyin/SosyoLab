@@ -267,8 +267,8 @@
   const ADMIN_EPOSTA = "sosyolog.35@sosyolab.local";
 
   /* Uygulamada tanınan tek rol kümesi. */
-  const ROLLER = ["ogrenci", "admin"];
-  const ROL_ETIKET = { ogrenci: "Kullanıcı", admin: "Admin" };
+  const ROLLER = ["ogrenci", "teacher", "admin"];
+  const ROL_ETIKET = { ogrenci: "Kullanıcı", teacher: "Öğretim Elemanı", admin: "Admin" };
 
   /* Arama kısayolunun etiketi platforma göre değişir; Windows'ta ⌘ göstermek
      yanıltıcıydı. Kod her iki tuşu da kabul etmeye devam eder. */
@@ -276,6 +276,7 @@
 
   /* Ayrıcalıklı işlemler için tek kontrol noktası. */
   const yetkili = () => !!state.oturum && state.oturum.rol === "admin";
+  const ogretmenMi = () => !!state.oturum && state.oturum.rol === "teacher";
 
   /* ---------- durum ---------- */
 
@@ -302,6 +303,7 @@
     bekleyen: [],
     paylasHata: null,
     paylasGonderiliyor: false,
+    ogretmenDersleri: [],
     onayHata: null,
     reddedilen: null,
     hata: null,
@@ -343,6 +345,35 @@
   const donemBul = (id) => DONEMLER.find((d) => d.id === id) || {};
   const donemAd = (id) => donemBul(id).kisa || "";
   const dersMateryal = (id) => state.materyaller.filter((m) => m.ders === id);
+
+  function ogretmenDersineAtandiMi(dersId) {
+    return !!dersId && state.ogretmenDersleri.indexOf(dersId) > -1;
+  }
+
+  function paylasimDersSecenekleri(donem, sinif) {
+    if (ogretmenMi()) {
+      const bilinen = DERSLER.filter(function (c) { return ogretmenDersineAtandiMi(c.id); });
+      const bilinmeyen = state.ogretmenDersleri
+        .filter(function (id) { return !dersBul(id); })
+        .map(function (id) {
+          return {
+            id: id,
+            code: id.toUpperCase(),
+            name: "Arşivde eşleşmeyen ders",
+            termId: state.nav.donem,
+            grade: state.nav.sinif || 1
+          };
+        });
+      return bilinen.concat(bilinmeyen);
+    }
+    return DERSLER.filter(function (c) { return c.termId === donem && c.grade === sinif; });
+  }
+
+  function paylasimAcikMi() {
+    if (!BULUT.etkin) return false;
+    if (!ogretmenMi()) return true;
+    return state.gorunum === "ders" && ogretmenDersineAtandiMi(state.dersId);
+  }
 
   /* Tek bir canlı bölge: ekran okuyucu her bildirimi duyurur, üst üste
      gelen mesajlar birikmez. Metin her zaman textContent ile yazılır. */
@@ -448,6 +479,14 @@
         sinif: SINIFLAR.indexOf(sinif) > -1 ? sinif : null
       };
     }
+    if (rol === "teacher") {
+      return {
+        no: metin(o.no, "Öğretim Elemanı"),
+        ad: metin(o.ad, "Öğretim Elemanı"),
+        rol: "teacher",
+        sinif: null
+      };
+    }
     if (typeof o.no !== "string" || !/^\d{10}$/.test(o.no)) return null;
     return {
       no: o.no,
@@ -476,6 +515,7 @@
 
     const o = oturumNormalize(oturum);
     if (o) state.oturum = o;
+    if (state.oturum && state.oturum.rol === "teacher") state.gorunum = "derslerim";
 
     state.favoriler = kimlikListesi(fav);
     state.sonGoruntulenen = kimlikListesi(son);
@@ -516,12 +556,13 @@
 
              Bu bir YETKİ KONTROLÜ DEĞİLDİR — erişimi kesen şey RLS'tir.
              Buradaki tek iş kullanıcıyı davet ekranına geri almak. */
-          if (state.oturum && state.oturum.rol !== "admin" && !(await davetDamgasiVarMi())) {
+          if (state.oturum && state.oturum.rol === "ogrenci" && !(await davetDamgasiVarMi())) {
             state.oturum = null;
             davetsizOturum = true;
           }
         }
         if (state.oturum) {
+          if (state.oturum.rol === "teacher") state.gorunum = "derslerim";
           await yaz("sosyolab:oturum", state.oturum);
           /* Paylaşılan materyal artık localStorage'da değil: onaylı kayıtlar
              sunucudan gelir. Yerel depo yalnızca tercih ve arayüz durumu tutar. */
@@ -558,6 +599,9 @@
     if (p.role === "admin") {
       return oturumNormalize({ no: ADMIN_TAKMA_AD, ad: p.display_name || "Yönetici", rol: "admin", sinif: null });
     }
+    if (p.role === "teacher") {
+      return oturumNormalize({ no: "Öğretim Elemanı", ad: p.display_name || "Öğretim Elemanı", rol: "teacher", sinif: null });
+    }
     const aday = yerel && /^\d{10}$/.test(yerel.no) ? yerel : { no: p.student_number, ad: p.display_name };
     return oturumNormalize({ no: aday.no, ad: aday.ad, sinif: aday.sinif, rol: "ogrenci" });
   }
@@ -573,6 +617,7 @@
     } else {
       BULUT.hata = "Arşiv sunucudan alınamadı.";
     }
+    state.ogretmenDersleri = ogretmenMi() ? await ogretmenDerslerimiGetir() : [];
     state.gonderiler = await gonderilerimiGetir();
     state.bekleyen = yetkili() ? await bekleyenleriGetir() : [];
   }
@@ -751,7 +796,14 @@
         BULUT.profil = (!ins.error && ins.data) ? ins.data : { id: BULUT.uid, role: "user" };
       }
       /* Rol sunucudan gelir; tarayıcıdaki seçim rolü belirlemez. */
-      return { ok: true, rol: BULUT.profil.role === "admin" ? "admin" : "ogrenci" };
+      return {
+        ok: true,
+        rol: BULUT.profil.role === "admin"
+          ? "admin"
+          : BULUT.profil.role === "teacher"
+            ? "teacher"
+            : "ogrenci"
+      };
     } catch (e) {
       return { ok: false, hata: "Bağlantı kurulamadı." };
     }
@@ -815,6 +867,18 @@
       .order("created_at", { ascending: false })
       .limit(200);
     return r.error ? [] : (r.data || []);
+  }
+
+  async function ogretmenDerslerimiGetir() {
+    if (!BULUT.etkin || !BULUT.uid) return [];
+    const r = await BULUT.istemci.from("teacher_courses")
+      .select("course_id")
+      .order("course_id", { ascending: true })
+      .limit(300);
+    if (r.error) return [];
+    return (r.data || [])
+      .map(function (satir) { return satir && satir.course_id; })
+      .filter(function (id) { return typeof id === "string" && id.length > 0; });
   }
 
   async function bekleyenleriGetir() {
@@ -948,7 +1012,21 @@
             </div>
             <button class="btn-primary" type="button" data-action="giris"${state.girisDeneniyor ? " disabled" : ""}>${
               state.girisDeneniyor ? '<span class="spinner"></span> Kontrol ediliyor…' : "Arşive Gir"}</button>
-            <p class="auth-foot">Bölüm öğrencileri ve yöneticiler için.</p>
+            <hr class="auth-sep" aria-hidden="true">
+            <h3>Öğretim Elemanı Girişi</h3>
+            <div class="field">
+              <label for="teacher-eposta">E-posta</label>
+              <input class="input" id="teacher-eposta" type="email" maxlength="190" autocomplete="username"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="field">
+              <label for="teacher-sifre">Parola</label>
+              <input class="input" id="teacher-sifre" type="password" maxlength="128" autocomplete="current-password"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go">
+            </div>
+            <button class="btn-primary" type="button" data-action="teacher-giris"${state.girisDeneniyor ? " disabled" : ""}>${
+              state.girisDeneniyor ? '<span class="spinner"></span> Kontrol ediliyor…' : "Öğretim Elemanı Olarak Gir"}</button>
+            <p class="auth-foot">Bölüm öğrencileri, öğretim elemanları ve yöneticiler için.</p>
             <p class="auth-demo">Kimlik doğrulama ve materyal işlemleri sunucu tarafındaki kurallarla korunur.</p>
           </div>
         </main>
@@ -979,6 +1057,63 @@
     } finally {
       state.girisDeneniyor = false;
     }
+  }
+
+  async function ogretimElemaniGirisiDene() {
+    if (state.girisDeneniyor) return;
+    const eposta = (document.getElementById("teacher-eposta").value || "").trim().toLowerCase();
+    const parola = document.getElementById("teacher-sifre").value || "";
+
+    if (!eposta) return hataGoster("Öğretim elemanı e-posta adresini gir.", "teacher-eposta");
+    if (!parola) return hataGoster("Parolanı gir.", "teacher-sifre");
+
+    state.girisDeneniyor = true;
+    state.hata = null;
+    ciz();
+    try {
+      return await ogretimElemaniGirisi(eposta, parola);
+    } catch (e) {
+      return hataGoster("Giriş tamamlanamadı. Bağlantını kontrol edip tekrar dene.", "teacher-eposta");
+    } finally {
+      state.girisDeneniyor = false;
+    }
+  }
+
+  async function ogretimElemaniGirisi(eposta, parola) {
+    if (!BULUT.etkin) {
+      return hataGoster("Öğretim elemanı girişi yalnızca sunucu bağlıyken yapılabilir.", "teacher-eposta");
+    }
+
+    const r = await BULUT.istemci.auth.signInWithPassword({ email: eposta, password: parola });
+    if (r.error || !r.data || !r.data.user) {
+      return hataGoster("E-posta veya parola hatalı.", "teacher-sifre");
+    }
+
+    BULUT.uid = r.data.user.id;
+    const pr = await BULUT.istemci.from("profiles")
+      .select("id, role, display_name, student_number")
+      .eq("id", BULUT.uid)
+      .maybeSingle();
+
+    if (pr.error || !pr.data) {
+      await bulutCikis();
+      return hataGoster("Profil doğrulanamadı. Bölüm yöneticisiyle iletişime geç.", "teacher-eposta");
+    }
+
+    BULUT.profil = pr.data;
+    if (BULUT.profil.role !== "teacher") {
+      await bulutCikis();
+      return hataGoster("Bu hesabın öğretim elemanı yetkisi yok.", "teacher-eposta");
+    }
+
+    await oturumAc({
+      no: "Öğretim Elemanı",
+      ad: BULUT.profil.display_name || "Öğretim Elemanı",
+      rol: "teacher",
+      sinif: null
+    });
+    await bulutYenile();
+    return ciz();
   }
 
   async function yoneticiGirisi(parola) {
@@ -1097,7 +1232,7 @@
   async function oturumAc(oturum) {
     state.oturum = oturumNormalize(oturum);
     state.hata = null;
-    state.gorunum = "panel";
+    state.gorunum = state.oturum && state.oturum.rol === "teacher" ? "derslerim" : "panel";
     state.dersId = null;
     state.katman = null;
     state.secili = null;
@@ -1117,6 +1252,7 @@
     state.hata = null;
     state.nav.sinif = null;
     state.gonderiler = [];
+    state.ogretmenDersleri = [];
     state.bekleyen = [];
     state.reddedilen = null;
     state.onayHata = null;
@@ -1156,6 +1292,10 @@
           <button class="sb-link" data-action="gonderilerim" aria-current="${state.gorunum === "gonderilerim"}">
             ${svg(I.inbox)} Gönderilerim${state.gonderiler.length ? `<em>${state.gonderiler.length}</em>` : ""}
           </button>
+          ${ogretmenMi() ? `
+          <button class="sb-link" data-action="derslerim" aria-current="${state.gorunum === "derslerim"}">
+            ${svg(I.bookOpen)} Derslerim${state.ogretmenDersleri.length ? `<em>${state.ogretmenDersleri.length}</em>` : ""}
+          </button>` : ""}
           ${yetkili() ? `
           <button class="sb-link" data-action="onay" aria-current="${state.gorunum === "onay"}">
             ${svg(I.clipboard)} Onay Bekleyenler${state.bekleyen.length ? `<span class="rozet">${state.bekleyen.length}</span>` : ""}
@@ -1216,6 +1356,13 @@
   /* ---------- üst bar ---------- */
 
   function ustBar() {
+    const paylasGoster = !ogretmenMi() || paylasimAcikMi();
+    const paylasPasif = !paylasimAcikMi();
+    const paylasUyari = !BULUT.etkin
+      ? ' title="Gönderim şu an kapalı: sunucu bağlantısı yok."'
+      : ogretmenMi()
+        ? ' title="Materyal paylaşımı için önce atanmış bir dersi aç."'
+        : "";
     return `
       <header class="topbar">
         <button class="icon-btn menu-btn" data-action="menu" aria-label="Gezinmeyi aç">${svg(I.menu)}</button>
@@ -1224,9 +1371,9 @@
           <button class="search-trigger" data-action="ara-ac">
             ${svg(I.search, "icon-sm")}<span>Ders, konu veya materyal ara…</span><kbd class="kbd">${KISAYOL}</kbd>
           </button>
-          <button class="btn" data-action="paylas-ac"${BULUT.etkin ? "" : ' disabled title="Gönderim şu an kapalı: sunucu bağlantısı yok."'}>
+          ${paylasGoster ? `<button class="btn" data-action="paylas-ac"${paylasPasif ? " disabled" : ""}${paylasUyari}>
             ${svg(I.plus, "icon-sm")}<span class="label">Materyal Paylaş</span>
-          </button>
+          </button>` : ""}
         </div>
       </header>`;
   }
@@ -1234,6 +1381,9 @@
   function kirintilar() {
     if (state.gorunum === "favoriler") {
       return '<button data-action="panel">Bölüm Arşivi</button><span class="sep">/</span><span class="now">Kaydettiklerim</span>';
+    }
+    if (state.gorunum === "derslerim") {
+      return '<button data-action="panel">Bölüm Arşivi</button><span class="sep">/</span><span class="now">Derslerim</span>';
     }
     if (state.gorunum === "ders") {
       const c = dersBul(state.dersId);
@@ -1281,7 +1431,11 @@
           <h2>Bilgiyi kendine saklama.</h2>
           <p class="cta-slogan">Bir not senden, bir dönem herkese fayda.</p>
           <p class="cta-metin">Ders notlarını, özetlerini ve sunumlarını SosyoLab'a yükle. İncelenen materyaller bölüm arşivine eklenerek herkesin kullanımına açılır.</p>
-          <button class="btn cta-btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>
+          ${paylasimAcikMi()
+            ? `<button class="btn cta-btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>`
+            : ogretmenMi()
+              ? `<p class="cta-not">Materyal paylaşımı için soldaki "Derslerim" bölümünden atanmış bir dersi aç.</p>`
+              : ""}
           ${BULUT.etkin ? "" : `<p class="cta-not">Gönderim şu an kapalı: bu sürüm sunucuya bağlı değil, yalnızca arayüz gösterimi yapıyor.</p>`}
         </section>
 
@@ -1344,6 +1498,40 @@
     const liste = [{ id: "materyaller", ad: "Materyaller" }];
     if (hepsi.some(function (m) { return m.hafta; })) liste.push({ id: "haftalar", ad: "Haftalar" });
     return liste;
+  }
+
+  function derslerimGorunumu() {
+    if (!ogretmenMi()) return panelGorunumu();
+
+    const atanmis = state.ogretmenDersleri.map(function (id) { return dersBul(id); }).filter(Boolean);
+    const bilinmeyen = state.ogretmenDersleri.filter(function (id) { return !dersBul(id); });
+
+    return `
+      <div class="content">
+        <div class="page-head">
+          <p class="eyebrow">${svg(I.bookOpen, "icon-sm")} ÖĞRETİM ELEMANI</p>
+          <h1 class="page-title">Derslerim</h1>
+          <p class="page-sub">Yalnızca atanmış derslerin için materyal paylaşabilirsin.</p>
+        </div>
+        ${atanmis.length || bilinmeyen.length
+          ? `<div class="cards">
+               ${atanmis.map(function (c) {
+                 return `<button class="card" data-action="ders" data-id="${c.id}">
+                   <span class="kod">${esc(c.code)}</span>
+                   <h3>${esc(c.name)}</h3>
+                   <p>${esc(donemAd(c.termId))} · ${c.grade}. Sınıf</p>
+                 </button>`;
+               }).join("")}
+               ${bilinmeyen.map(function (id) {
+                 return `<button class="card" data-action="ders" data-id="${esc(id)}">
+                   <span class="kod">${esc(id)}</span>
+                   <h3>Ders kaydı arşivde bulunamadı</h3>
+                   <p>Yine de bu ders kimliği için yükleme yetkisi var.</p>
+                 </button>`;
+               }).join("")}
+             </div>`
+          : `<div class="empty">${svg(I.inbox, "icon-lg")}<strong>Henüz ders ataman yok.</strong><p>Yönetici ders ataması yaptıktan sonra burada listelenecek.</p></div>`}
+      </div>`;
   }
 
   function dersGorunumu() {
@@ -1473,8 +1661,12 @@
         ${svg(I.inbox, "icon-lg")}
         <strong>${esc(baslik)}</strong>
         ${BULUT.etkin
-          ? `<p>İlk materyali sen paylaş — inceleme sonrası bölümdeki herkes görür.</p>
-             <button class="btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>`
+          ? `${ogretmenMi()
+              ? `<p>Bu ders atanmışsa materyal doğrudan yayınlanır.</p>${paylasimAcikMi()
+                  ? `<button class="btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>`
+                  : ""}`
+              : `<p>İlk materyali sen paylaş — inceleme sonrası bölümdeki herkes görür.</p>
+                 <button class="btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>`}`
           : `<p>Bu bölüme materyal eklenince burada görünecek.</p>`}
       </div>`;
   }
@@ -1581,16 +1773,24 @@
     const mevcut = dersBul(state.dersId);
     const secDonem = mevcut ? mevcut.termId : state.nav.donem;
     const secSinif = mevcut ? mevcut.grade : (state.nav.sinif || (state.oturum && state.oturum.sinif) || 1);
-    const dersSecenek = DERSLER.filter(function (c) { return c.termId === secDonem && c.grade === secSinif; });
+    const dersSecenek = paylasimDersSecenekleri(secDonem, secSinif);
+    const seciliDers = ogretmenMi()
+      ? (ogretmenDersineAtandiMi(state.dersId) ? state.dersId : (dersSecenek[0] ? dersSecenek[0].id : ""))
+      : state.dersId;
+    const lede = ogretmenMi()
+      ? "Atandığın derslerdeki gönderilerin doğrudan arşivde yayınlanır."
+      : "Gönderin admin incelemesinden geçtikten sonra arşivde yayınlanır.";
+    const gonderMetni = ogretmenMi() ? "Yayımla" : "İncelemeye Gönder";
 
     return `
       <div class="scrim" data-action="kapat"></div>
       <div class="modal" role="dialog" aria-modal="true" aria-label="Materyal paylaş">
         <h2>Materyal Paylaş</h2>
-        <p class="lede">Gönderin admin incelemesinden geçtikten sonra arşivde yayınlanır.</p>
+        <p class="lede">${lede}</p>
         ${state.paylasHata ? `<p class="form-error" role="alert">${esc(state.paylasHata)}</p>` : ""}
 
         <div class="grid-2">
+          ${ogretmenMi() ? "" : `
           <div class="field">
             <label for="p-donem">Dönem</label>
             <select class="input" id="p-donem" data-kapsam2="1">
@@ -1604,14 +1804,16 @@
               ${SINIFLAR.map(function (n) {
                 return `<option value="${n}"${n === secSinif ? " selected" : ""}>${n}. Sınıf</option>`; }).join("")}
             </select>
-          </div>
+          </div>`}
           <div class="field wide">
             <label for="p-ders">Ders</label>
             <select class="input" id="p-ders">
               ${dersSecenek.length
                 ? dersSecenek.map(function (c) {
-                    return `<option value="${c.id}"${c.id === state.dersId ? " selected" : ""}>${esc(c.code)} · ${esc(c.name)}</option>`; }).join("")
-                : '<option value="">Bu dönem ve sınıfta ders yok</option>'}
+                    return `<option value="${c.id}"${c.id === seciliDers ? " selected" : ""}>${esc(c.code)} · ${esc(c.name)}</option>`; }).join("")
+                : (ogretmenMi()
+                    ? '<option value="">Atanmış dersin bulunmuyor</option>'
+                    : '<option value="">Bu dönem ve sınıfta ders yok</option>')}
             </select>
           </div>
           <div class="field wide">
@@ -1638,7 +1840,7 @@
         <div class="modal-actions">
           <button class="btn btn-ghost" data-action="kapat">Vazgeç</button>
           <button class="btn" data-action="paylas-gonder"${state.paylasGonderiliyor ? " disabled" : ""}>${
-            state.paylasGonderiliyor ? '<span class="spinner"></span> Gönderiliyor…' : "İncelemeye Gönder"}</button>
+            state.paylasGonderiliyor ? '<span class="spinner"></span> Gönderiliyor…' : gonderMetni}</button>
         </div>
       </div>`;
   }
@@ -1654,6 +1856,7 @@
 
     if (!ders) return paylasHata("Bir ders seç.");
     if (!dersBul(ders)) return paylasHata("Seçilen ders tanınmıyor.");
+    if (ogretmenMi() && !ogretmenDersineAtandiMi(ders)) return paylasHata("Bu derse materyal paylaşma yetkin yok.");
     if (!baslik) return paylasHata("Materyalin bir başlığa ihtiyacı var.");
     const d = dosyaDogrula(dosya);
     if (!d.ok) return paylasHata(d.hata);
@@ -1668,7 +1871,11 @@
     state.paylasHata = null;
     await bulutYenile();
     ciz();
-    bildir("Materyalin incelemeye gönderildi. Admin onayından sonra arşivde yayınlanacak.");
+    if (ogretmenMi()) {
+      bildir("Materyal yayımlandı.");
+    } else {
+      bildir("Materyalin incelemeye gönderildi. Admin onayından sonra arşivde yayınlanacak.");
+    }
   }
 
   function paylasHata(mesaj) {
@@ -1691,8 +1898,10 @@
           ? `<div class="empty">${svg(I.inbox, "icon-lg")}<strong>Gönderim şu an kapalı.</strong><p>Bu sürüm sunucuya bağlı değil; materyal gönderimi devre dışı.</p></div>`
           : state.gonderiler.length
             ? state.gonderiler.map(gonderiSatiri).join("")
-            : `<div class="empty">${svg(I.inbox, "icon-lg")}<strong>Henüz materyal göndermedin.</strong><p>Arşive katkı vermek için gösterge panosundaki "Materyal Paylaş" düğmesini kullan.</p>
-                 <button class="btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button></div>`}
+            : `<div class="empty">${svg(I.inbox, "icon-lg")}<strong>Henüz materyal göndermedin.</strong><p>${ogretmenMi()
+                 ? "Atandığın bir derse gidip materyalini doğrudan yayınlayabilirsin."
+                 : "Arşive katkı vermek için gösterge panosundaki Materyal Paylaş düğmesini kullan."}</p>
+                 ${ogretmenMi() ? "" : `<button class="btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>`}</div>`}
       </div>`;
   }
 
@@ -1888,6 +2097,7 @@
 
     const govde = state.gorunum === "ders" ? dersGorunumu()
       : state.gorunum === "favoriler" ? favoriGorunumu()
+      : state.gorunum === "derslerim" ? derslerimGorunumu()
       : state.gorunum === "gonderilerim" ? gonderilerimGorunumu()
       : state.gorunum === "onay" ? onayGorunumu()
       : panelGorunumu();
@@ -1997,6 +2207,7 @@
     if (KATMAN_KAPATAN[action]) odagiGeriVer();
 
     if (action === "giris") return girisDene();
+    if (action === "teacher-giris") return ogretimElemaniGirisiDene();
 
     if (action === "cikis") {
       oturumuTemizle();
@@ -2013,6 +2224,12 @@
       return ciz();
     }
 
+    if (action === "derslerim") {
+      if (!ogretmenMi()) return bildir("Bu bölüm yalnızca öğretim elemanlarına açık.");
+      state.gorunum = "derslerim"; state.katman = null; state.sidebarAcik = false;
+      return ciz();
+    }
+
     if (action === "onay") {
       if (!yetkili()) return bildir("Bu bölüm yalnızca yöneticilere açık.");
       state.gorunum = "onay"; state.katman = null; state.sidebarAcik = false; state.reddedilen = null;
@@ -2021,6 +2238,9 @@
     }
 
     if (action === "paylas-ac") {
+      if (!paylasimAcikMi()) {
+        return bildir("Materyal paylaşmak için atanmış bir ders açmalısın.");
+      }
       state.katman = "paylas"; state.secili = null; state.paylasHata = null; state.sidebarAcik = false;
       return ciz();
     }
@@ -2106,10 +2326,11 @@
     if (e.target.id === "aramaGiris") { state.aramaSorgu = e.target.value; return ciz(); }
     if (e.target.id === "sirala") { state.sirala = e.target.value; return ciz(); }
     if (e.target.dataset && e.target.dataset.kapsam2) {
+      if (ogretmenMi()) return;
       const donem = document.getElementById("p-donem").value;
       const sinif = parseInt(document.getElementById("p-sinif").value, 10);
       const sec = document.getElementById("p-ders");
-      const dersler = DERSLER.filter(function (c) { return c.termId === donem && c.grade === sinif; });
+      const dersler = paylasimDersSecenekleri(donem, sinif);
       sec.innerHTML = dersler.length
         ? dersler.map(function (c) { return `<option value="${c.id}">${esc(c.code)} · ${esc(c.name)}</option>`; }).join("")
         : '<option value="">Bu dönem ve sınıfta ders yok</option>';
@@ -2120,6 +2341,7 @@
   root.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     if (e.target.id === "kimlik" || e.target.id === "sifre") { e.preventDefault(); girisDene(); }
+    if (e.target.id === "teacher-eposta" || e.target.id === "teacher-sifre") { e.preventDefault(); ogretimElemaniGirisiDene(); }
   });
 
   function odagiGeriVer() {

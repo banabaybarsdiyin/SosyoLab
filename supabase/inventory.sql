@@ -99,6 +99,9 @@ with beklenen_tum(schemaname, tablename, policyname, cmd, mod) as (
     ('public',  'profiles',            'profiles_kendi_okur',      'SELECT', 'HER'),
     ('public',  'profiles',            'profiles_kendi_olusturur', 'INSERT', 'HER'),
     ('public',  'profiles',            'profiles_kendi_gunceller', 'UPDATE', 'HER'),
+    ('public',  'teacher_courses',     'teacher_courses_okuma',          'SELECT', 'HER'),
+    ('public',  'teacher_courses',     'teacher_courses_admin_ekleme',   'INSERT', 'HER'),
+    ('public',  'teacher_courses',     'teacher_courses_admin_silme',    'DELETE', 'HER'),
     ('public',  'materials',           'materials_okuma',          'SELECT', 'HER'),
     ('public',  'materials',           'materials_gonderim',       'INSERT', 'HER'),
     ('public',  'materials',           'materials_inceleme',       'UPDATE', 'HER'),
@@ -189,9 +192,23 @@ from (
       when p.tablename = 'materials' and p.cmd = 'INSERT'
         and coalesce(p.with_check, '') not like '%davet_dogrulandi_mi%'
         then 'materials INSERT: davet koşulu YOK (göç 001 geri alınmış)'
+      when p.tablename = 'materials' and p.cmd = 'INSERT'
+        and coalesce(p.with_check, '') not like '%teacher_has_course%'
+        then 'materials INSERT: teacher ders sahipliği koşulu YOK'
       when p.tablename = 'materials' and p.cmd in ('UPDATE', 'DELETE')
         and coalesce(p.qual, '') not like '%is_admin%'
         then 'materials ' || p.cmd || ': admin koşulu YOK'
+
+      -- teacher_courses: öğretmen kendi dersini okur, yönetimi yalnız admin yapar
+      when p.tablename = 'teacher_courses' and p.cmd = 'SELECT'
+        and coalesce(p.qual, '') not like '%auth.uid%'
+        then 'teacher_courses SELECT: öğretmen sahiplik koşulu YOK'
+      when p.tablename = 'teacher_courses' and p.cmd = 'SELECT'
+        and coalesce(p.qual, '') not like '%is_admin%'
+        then 'teacher_courses SELECT: admin dalı YOK'
+      when p.tablename = 'teacher_courses' and p.cmd in ('INSERT', 'DELETE')
+        and coalesce(p.qual, p.with_check, '') not like '%is_admin%'
+        then 'teacher_courses ' || p.cmd || ': yalnız admin koşulu YOK'
 
       -- storage: klasör (sahiplik) kısıtı her zaman yerinde olmalı
       when p.tablename = 'objects' and p.cmd in ('SELECT', 'INSERT')
@@ -224,7 +241,7 @@ from (
     end as bulgu
     from pg_policies p
    where (p.schemaname = 'public'
-          and p.tablename in ('materials', 'profiles', 'denetim_kaydi', 'davet_dogrulamalari'))
+          and p.tablename in ('materials', 'profiles', 'teacher_courses', 'denetim_kaydi', 'davet_dogrulamalari'))
       or (p.schemaname = 'storage' and p.tablename = 'objects')
 ) t
 where bulgu is not null
@@ -247,7 +264,7 @@ select n.nspname as sema, c.relname as tablo,
  where c.relkind = 'r'
    and (
         (n.nspname = 'public' and c.relname in (
-           'profiles', 'materials', 'davet_kodlari',
+           'profiles', 'teacher_courses', 'materials', 'davet_kodlari',
            'davet_dogrulamalari', 'davet_denemeleri', 'denetim_kaydi'))
      or (n.nspname = 'storage' and c.relname in ('objects', 'buckets'))
    )
@@ -287,6 +304,7 @@ select n.nspname as sema, c.relname as tablo,
 -- Beklenen:
 --   anon          → HİÇBİR tabloda hiçbir izin
 --   authenticated → profiles: SELECT, INSERT, UPDATE
+--                   teacher_courses: SELECT, INSERT, DELETE
 --                   materials: SELECT, INSERT, UPDATE, DELETE
 --                   davet_dogrulamalari: HİÇBİRİ (RPC mimarisi — aşağıdaki not)
 --                   denetim_kaydi: HİÇBİRİ (doğrudan istemci SELECT tasarlanmamıştır)
@@ -302,6 +320,9 @@ with sozlesme(table_name, grantee, privilege_type, durum) as (
     ('profiles',            'authenticated', 'SELECT',     'ZORUNLU'),
     ('profiles',            'authenticated', 'INSERT',     'ZORUNLU'),
     ('profiles',            'authenticated', 'UPDATE',     'ZORUNLU'),
+    ('teacher_courses',     'authenticated', 'SELECT',     'ZORUNLU'),
+    ('teacher_courses',     'authenticated', 'INSERT',     'ZORUNLU'),
+    ('teacher_courses',     'authenticated', 'DELETE',     'ZORUNLU'),
     ('materials',           'authenticated', 'SELECT',     'ZORUNLU'),
     ('materials',           'authenticated', 'INSERT',     'ZORUNLU'),
     ('materials',           'authenticated', 'UPDATE',     'ZORUNLU'),
@@ -325,7 +346,7 @@ with sozlesme(table_name, grantee, privilege_type, durum) as (
 ),
 hedef_tablolar(table_name) as (
   values
-    ('profiles'), ('materials'), ('davet_kodlari'),
+    ('profiles'), ('teacher_courses'), ('materials'), ('davet_kodlari'),
     ('davet_dogrulamalari'), ('davet_denemeleri'), ('denetim_kaydi')
 ),
 hedef_roller(grantee) as (
@@ -502,6 +523,8 @@ select k.id, k.aciklama, k.uygulandi as su_an_uygulanmis,
 with hedef(ad, imza, tip, mod) as (
   values
     ('is_admin',                 'public.is_admin()',                      'politika', 'HER'),
+    ('is_teacher',               'public.is_teacher()',                    'politika', 'HER'),
+    ('teacher_has_course',       'public.teacher_has_course(text)',        'politika', 'HER'),
     ('davet_dogrulandi_mi',      'public.davet_dogrulandi_mi()',           'politika', 'HER'),
     ('davet_kullan',             'public.davet_kullan(text)',              'rpc',      'HER'),
     ('denetim_yaz',              'public.denetim_yaz(text,text,text,jsonb)','ic',      'HER'),
@@ -612,6 +635,9 @@ with repo_fonksiyonlari(ad) as (
     -- schema.sql
     ('is_admin'), ('profiles_rol_koru'), ('profiles_rol_varsayilan'),
     ('materials_inceleme_damgala'),
+    -- göç 004 (teacher)
+    ('is_teacher'), ('teacher_has_course'),
+    ('teacher_courses_teacher_koru'), ('materials_gonderim_durumunu_ata'),
     -- göç 001
     ('davet_aktif_kod_siniri'), ('davet_dogrulandi_mi'), ('davet_kullan'),
     ('profiles_no_koru'),
@@ -810,7 +836,7 @@ select g.table_name, g.grantee, g.privilege_type,
  where g.table_schema = 'public'
    and g.grantee in ('anon', 'authenticated')
    and g.privilege_type in ('TRUNCATE', 'REFERENCES', 'TRIGGER')
-   and g.table_name in ('profiles', 'materials', 'davet_kodlari',
+  and g.table_name in ('profiles', 'teacher_courses', 'materials', 'davet_kodlari',
                         'davet_dogrulamalari', 'davet_denemeleri', 'denetim_kaydi')
  order by 1, 2, 3;
 

@@ -540,7 +540,13 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
    `materials_gonderim` gövdesinde `foldername` geçmelidir. Blok H'deki ham
    döküm depo dosyalarıyla gözle karşılaştırılır (blok B gerekli koşulu
    denetler, tam gövde eşitliğini değil).
-5. **Residual privilege hardening — `004_revoke_public_table_ddl_privs.sql`.**
+5. **Teacher role migration — `004_teacher_role.sql`.**
+  `profiles.role` kümesi `teacher` ile genişler, `teacher_courses` tablosu
+  ve öğretim elemanı için doğrudan yayın (server-side trigger) akışı kurulur.
+  Bu adımda policy/fonksiyonlar güncellendiği için ardından envanter tekrar
+  çalıştırılır.
+
+6. **Residual privilege hardening — `004_revoke_public_table_ddl_privs.sql`.**
     003 `POST` gate geçtikten sonra uygulanır; kapsamı yalnızca
     `public.denetim_kaydi` ve `public.davet_dogrulamalari` tablolarında
     `anon/authenticated` için `TRUNCATE, REFERENCES, TRIGGER` revoke etmektir.
@@ -551,23 +557,23 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
 
     004 sonrası envanterde Blok K için beklenen sonuç: **0 satır**.
 
-6. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
+7. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
    B.2 (davetsiz oturum) ve C (Storage) çalıştırılır. Bunlar konsol/API
    testleridir; **eski `app.js` ile çalışır.** Hepsi geçmeden ilerlenmez.
-7. **Depo değişiklikleri commit + push edilir** (`main`).
-8. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
+8. **Depo değişiklikleri commit + push edilir** (`main`).
+9. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
    "GitHub Pages'e yayınla" işinin yeşil olduğu doğrulanır. İş, gizli anahtar
    taraması / inline betik denetimi / bağımlılık hash'i / yayın klasörü
    doğrulaması kapılarını da çalıştırır.
-9. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
-10. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
+10. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
+11. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
    bayt bayt yapar; bayat CDN önbelleği burada yakalanır).
-11. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
-    B.3 (UI-01…UI-03, damgasız oturum yönlendirmesi) çalıştırılır. **Bunlar
-    yeni `app.js` gerektirir, bu yüzden 8. adımdan sonradır.**
-12. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
+12. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
+  B.3 (UI-01…UI-03, damgasız oturum yönlendirmesi) çalıştırılır. **Bunlar
+  yeni `app.js` gerektirir, bu yüzden 9. adımdan sonradır.**
+13. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
     test kullanıcıları, geçici davet kodu ve artık dosyalar silinir.
-13. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
+14. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
     ardından doğrulama:
     ```bash
     curl -sSI https://arsiv.sosyolab.tr | grep -iE 'strict-transport|content-security|x-frame|x-content-type|referrer|permissions'
@@ -703,7 +709,11 @@ SQL Editor'de **sırayla**:
    dosya sahipliği koşulu geri alınır ve SL-09 yeniden açılır.
    `supabase/inventory.sql` B bloğu bu durumu yakalar.
 
-5. `supabase/migrations/004_revoke_public_table_ddl_privs.sql` — tamamını çalıştır.
+5. `supabase/migrations/004_teacher_role.sql` — tamamını çalıştır.
+  *`teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için
+  ders-sahipliği kontrollü doğrudan yayın akışını ekler.*
+
+6. `supabase/migrations/004_revoke_public_table_ddl_privs.sql` — tamamını çalıştır.
   *Residual hardening adımıdır: `public.denetim_kaydi` ve
   `public.davet_dogrulamalari` tablolarında `anon`/`authenticated` için
   `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır.*

@@ -187,7 +187,14 @@
   }
 
   .auth-card h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .auth-card h3 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 10px; }
   .auth-card p.lede { color: var(--text-2); font-size: 14px; margin: 0 0 22px; }
+
+  .auth-sep {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 16px 0 14px;
+  }
 
   .field { display: grid; gap: 7px; margin-bottom: 16px; }
   .field label { font-size: 13px; font-weight: 500; color: var(--text-2); }

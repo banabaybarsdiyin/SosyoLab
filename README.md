@@ -55,6 +55,8 @@ Giriş ekranında tek bir form vardır; girilen kimliğe göre yönlendirme yap�
 
 - **Öğrenci** — 10 haneli öğrenci numarası + davet kodu. Arşivi görüntüler,
   arar, favori ekler, materyal gönderir, dosya indirir.
+- **Öğretim Elemanı** — e-posta + parola ile giriş yapar. Yalnızca kendisine
+   atanmış derslere materyal yükler; bu gönderiler sunucuda doğrudan yayınlanır.
 - **Yönetici** — `sosyolog35` kullanıcı adı + parola. Ek olarak gönderileri
   önizler, onaylar, reddeder ve arşivden materyal kaldırır.
 
@@ -62,6 +64,10 @@ Yönetici girişinde parola tarayıcıda hiçbir şeyle karşılaştırılmaz. T
 `sosyolog.35@sosyolab.local` adresine eşlenir, doğrulama Supabase Auth'ta
 yapılır ve yetki **yalnızca** `public.profiles.role = 'admin'` satırından gelir.
 Zincirin herhangi bir halkası kopuyorsa giriş reddedilir.
+
+Öğretim elemanı girişinde de aynı ilke geçerlidir: doğrulama Supabase Auth'ta
+`signInWithPassword` ile yapılır, öğretim elemanı arayüzüne giriş yalnızca
+`public.profiles.role = 'teacher'` ise açılır.
 
 `sosyolog35` bir **takma addır, yetki kaynağı değildir.** `localStorage`,
 `sessionStorage`, DOM ya da herhangi bir JavaScript değişkeni yönetici yetkisi
@@ -207,7 +213,12 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    | `supabase/migrations/001_davet_kodlari.sql` | Sunucu tarafında davet kodu doğrulaması; gönderim iznini doğrulanmış davete bağlar |
    | `supabase/migrations/002_denetim_kaydi.sql` | Yönetici işlemleri için değiştirilemez denetim kaydı |
    | `supabase/migrations/003_launch_gate_hardening.sql` | Arşiv **okumasını** ve depo yüklemesini de davete bağlar; gönderimde dosya sahipliğini zorunlu kılar; başarısız gönderimin bıraktığı yetim dosyanın silinmesine izin verir |
+   | `supabase/migrations/004_teacher_role.sql` | `teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için ders-sahipliği kontrollü doğrudan yayın akışı |
    | `supabase/migrations/004_revoke_public_table_ddl_privs.sql` | Residual hardening: `denetim_kaydi` ve `davet_dogrulamalari` üzerinde `anon/authenticated` için `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır |
+
+   Önerilen uygulama sırası: `001` → `002` → `003` → `004_teacher_role` → `004_revoke_public_table_ddl_privs`.
+
+   Öğretim elemanı hesabı ve ders ataması için: `docs/TEACHER-SETUP.md`.
 
    > 003 olmadan davet kodu yalnızca bir gönderim kontrolüdür: anonim giriş
    > açık olduğu için kodu bilmeyen biri de oturum açıp onaylı arşivin
@@ -243,9 +254,12 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
 ### Materyal akışı
 
 ```
-Öğrenci dosya yükler  →  status = pending  →  yönetici inceler
-                                              ├─ Onayla  → approved → arşivde görünür
-                                              └─ Reddet  → rejected → gerekçe gönderene görünür
+Öğrenci dosya yükler       → status = pending  → yönetici inceler
+                                                  ├─ Onayla  → approved → arşivde görünür
+                                                  └─ Reddet  → rejected → gerekçe gönderene görünür
+
+Öğretim elemanı (atanmış ders) → status = approved (sunucuda trigger ile)
+                                → arşivde doğrudan görünür
 ```
 
 Bekleyen ve reddedilen materyaller ders arşivinde görünmez. Dosyalar özel
