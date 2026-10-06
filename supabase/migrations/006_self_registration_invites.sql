@@ -300,7 +300,7 @@ begin
     raise exception 'Kayıt işlemi için aktif oturum gerekli';
   end if;
 
-  if current_setting('sosyolab.registration_context', true) <> 'on' then
+  if current_setting('sosyolab.registration_context', true) is distinct from 'on' then
     raise exception 'Davet kodu yalnızca kayıt tamamlama akışında kullanılabilir';
   end if;
 
@@ -308,17 +308,22 @@ begin
     raise exception 'Davet kodu geçersiz ya da süresi dolmuş';
   end if;
 
-  -- Aynı kullanıcıya daha önce basılmış damga varsa idempotent dön.
+  -- Damga yalnızca aynı kod/audience sözleşmesi için yeniden kullanılabilir.
   return query
   select k.audience_type, k.class_year, k.id
     from public.davet_dogrulamalari d
     join public.davet_kodlari k on k.id = d.davet_id
    where d.user_id = v_uid
      and k.audience_type in ('student', 'teacher')
+     and k.kod_ozeti = extensions.crypt(v_kod, k.kod_ozeti)
    limit 1;
 
   if found then
     return;
+  end if;
+
+  if exists (select 1 from public.davet_dogrulamalari d where d.user_id = v_uid) then
+    raise exception 'Davet kodu kayıt damgasıyla eşleşmiyor';
   end if;
 
   for v_satir in
@@ -360,6 +365,10 @@ $$;
 
 revoke all on function public.kayit_icin_davet_kodu_kullan(text) from public, anon, authenticated;
 
+-- 001 helper'ı audience kontrolü yapmaz. Yeni frontend yalnız kayıt RPC'sini
+-- kullanır; migration penceresinde eski istemciyle kod tüketimi desteklenmez.
+revoke all on function public.davet_kullan(text) from public, anon, authenticated;
+
 create or replace function public.kullanici_kaydi_tamamla(
   p_username text,
   p_sifreli_davet_kodu text,
@@ -395,6 +404,9 @@ begin
   if v_email !~ '^[a-z0-9][a-z0-9._+-]{2,63}@auth\.sosyolab\.local$' then
     raise exception 'Kayıt kimliği geçersiz. Lütfen kaydı tekrar başlat.';
   end if;
+
+  -- Henüz profile satırı olmayan aynı UID'nin eşzamanlı kayıtlarını da sırala.
+  perform pg_advisory_xact_lock(hashtextextended(v_uid::text, 006));
 
   select *
     into v_mevcut
@@ -463,6 +475,8 @@ begin
   if not found then
     raise exception 'Profil kaydı güncellenemedi';
   end if;
+
+  perform set_config('sosyolab.registration_context', 'off', true);
 
   return jsonb_build_object(
     'ok', true,
@@ -662,6 +676,8 @@ create policy materials_gonderim on public.materials
       or
       (
         not public.is_teacher()
+        and exists (select 1 from public.profiles p
+                    where p.id = auth.uid() and p.teacher_status is null)
         and status = 'pending'
         and reviewed_at is null
         and reviewed_by is null
@@ -698,6 +714,9 @@ create policy materyal_yukleme on storage.objects
     bucket_id = 'materyaller'
     and public.uye_profili_var_mi()
     and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (select 1 from public.profiles p
+                where p.id = auth.uid()
+                  and (p.teacher_status is null or p.teacher_status = 'approved'))
     and (
       public.is_admin()
       or public.is_teacher()
@@ -755,6 +774,35 @@ create trigger profiles_kayit_alanlarini_koru_trg
 -- ----------------------------------------------------------------------------
 -- 6) teacher_courses koruması (sos401 teacher'a atanamaz)
 -- ----------------------------------------------------------------------------
+
+-- Önce 005 döneminden kalan atamaları temizle; CHECK bundan sonra doğrulanır.
+delete from public.teacher_courses
+where lower(btrim(course_id)) = 'sos401';
+
+alter table public.teacher_courses
+  drop constraint if exists teacher_courses_sos401_yasak;
+alter table public.teacher_courses
+  add constraint teacher_courses_sos401_yasak
+  check (lower(btrim(course_id)) <> 'sos401');
+
+-- Yanlış bir satır kısıtlar atlanarak eklenmiş olsa da doğrudan yayın verme.
+create or replace function public.teacher_has_course(p_course_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select lower(btrim(p_course_id)) <> 'sos401'
+    and public.is_teacher()
+    and exists (
+      select 1 from public.teacher_courses tc
+       where tc.teacher_id = auth.uid() and tc.course_id = p_course_id
+    );
+$$;
+
+revoke all on function public.teacher_has_course(text) from public, anon;
+grant execute on function public.teacher_has_course(text) to authenticated;
 
 create or replace function public.teacher_courses_teacher_koru()
 returns trigger

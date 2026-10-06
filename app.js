@@ -219,32 +219,12 @@
     { id: "m21", ders: "sos101", tur: "kaynak", baslik: "Dönem okuma listesi", hafta: null, meta: "PDF · 2 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-04", etiketler: ["Okuma listesi"], aciklama: "Zorunlu ve önerilen okumalar ayrı ayrı." }
   ];
   /* ---------- davet kodu doğrulaması ----------
-
-     Statik bir sitede tarayıcıya ulaşan her değer herkese açıktır. Bu yüzden
-     davet kodu ARTIK bu dosyada tutulmaz ve burada karşılaştırılmaz.
-
-     İki mod vardır:
-
-       "server"  Kod Supabase'e gönderilir; public.davet_kullan(p_kod) RPC'si
-                 bcrypt özetiyle karşılaştırır, süre ve kullanım hakkını
-                 atomik biçimde denetler ve public.davet_dogrulamalari
-                 tablosuna damgayı basar. Kodun kendisi hiçbir zaman istemci
-                 koduna girmez. Gönderim izni bu damgaya bağlıdır ve sınır
-                 RLS'tedir; bu dosya damgayı hiç okumaz. Üretimde
-                 kullanılacak mod budur.
-                 Gerekli şema: supabase/migrations/001_davet_kodlari.sql
-
-       "local"   Yalnızca sunucu tarafı henüz kurulmamışken. Kod config.js
-                 içindeki LOCAL_INVITE_CODE değeriyle tarayıcıda karşılaştırılır.
-                 Bu bir GÜVENLİK ÖNLEMİ DEĞİLDİR: kaynağa bakan herkes kodu
-                 görür; anonim giriş zaten açık olduğu için kod hiç bilinmeden
-                 de oturum açılabilir. Yalnızca kazara girişi azaltır.
-
-     Varsayılan "local"dir; böylece sunucu göçü uygulanmadan mevcut kurulum
-     bozulmaz. Göç uygulandıktan sonra config.js içinde INVITE_MODE "server"
-     yapılmalıdır. */
-  const AYAR = window.SOSYOLAB_CONFIG || {};
-  const DAVET_SUNUCUDA = AYAR.INVITE_MODE === "server";
+     006: username/password kayıt, public.kullanici_kaydi_tamamla RPC'siyle
+     tamamlanır. İç davet helper'ı student/teacher sınıfını doğrular ve atomik
+     tüketir; public.davet_kullan istemci erişimi kapalıdır. Profil + davet
+     membership ve teacher durumuna göre erişim sınırı RLS'te uygulanır.
+     Production INVITE_MODE="server" kullanır; gerekli şema schema + 001..006.
+     LOCAL_INVITE_CODE production yapılandırmasında saklanmaz. */
 
   /* Yönetici giriş takma adı. Bu YALNIZCA bir kullanıcı adıdır; yetki vermez.
      Zincir: takma ad → sabit e-posta eşlemesi → Supabase parola doğrulaması →
@@ -366,8 +346,14 @@
 
   function paylasimAcikMi() {
     if (!BULUT.etkin) return false;
+    if (ogretmenBasvurusuKisitliMi()) return false;
     if (!ogretmenMi()) return true;
     return state.gorunum === "ders" && ogretmenDersineAtandiMi(state.dersId);
+  }
+
+  function ogretmenBasvurusuKisitliMi() {
+    return !!BULUT.profil && (BULUT.profil.teacher_status === "pending"
+      || BULUT.profil.teacher_status === "rejected");
   }
 
   /* Tek bir canlı bölge: ekran okuyucu her bildirimi duyurur, üst üste
@@ -861,6 +847,7 @@
   }
 
   async function gonderiOlustur(veri, dosya) {
+    if (ogretmenBasvurusuKisitliMi()) return { ok: false, hata: "Başvuru durumun materyal yüklemeye izin vermiyor." };
     if (!BULUT.etkin || !BULUT.uid) return { ok: false, hata: "Bulut bağlantısı yok." };
     const d = dosyaDogrula(dosya);
     if (!d.ok) return { ok: false, hata: d.hata };
@@ -1841,6 +1828,7 @@
 
   async function paylasimGonder() {
     if (state.paylasGonderiliyor) return;
+    if (ogretmenBasvurusuKisitliMi()) return paylasHata("Başvuru durumun materyal yüklemeye izin vermiyor.");
     const ders = document.getElementById("p-ders").value;
     const baslik = (document.getElementById("p-baslik").value || "").trim();
     const aciklama = (document.getElementById("p-aciklama").value || "").trim();
@@ -2149,13 +2137,19 @@
       return;
     }
 
-    const govde = state.gorunum === "ders" ? dersGorunumu()
+    const basvuruDurumu = ogretmenBasvurusuKisitliMi()
+      ? `<section class="card" role="status"><h2>Öğretim Elemanı Başvurusu</h2><p>${
+          BULUT.profil.teacher_status === "pending"
+            ? "Başvurun alındı. Yönetici onayı bekleniyor."
+            : "Başvurun reddedildi. Yöneticiyle iletişime geç."}</p><p>Bu durumda materyal yükleme kapalıdır.</p></section>`
+      : "";
+    const govde = basvuruDurumu + (state.gorunum === "ders" ? dersGorunumu()
       : state.gorunum === "favoriler" ? favoriGorunumu()
       : state.gorunum === "derslerim" ? derslerimGorunumu()
       : state.gorunum === "gonderilerim" ? gonderilerimGorunumu()
       : state.gorunum === "onay" ? onayGorunumu()
       : state.gorunum === "basvurular" ? ogretmenBasvurulariGorunumu()
-      : panelGorunumu();
+      : panelGorunumu());
 
     const katman = state.katman === "paylas" ? paylasKatmani()
       : state.katman === "ara" ? aramaKatmani()

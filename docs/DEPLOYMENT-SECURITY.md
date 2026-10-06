@@ -448,165 +448,75 @@ SHA-256: `8596965fe918e656600a1b568d3a168f5c0d3d22a600886bb6f44a6555db01e7`
 
 ---
 
-## 11. Yayına alma sırası
+## 11. 006 production release sırası
 
-Bu sıra önemlidir; atlanan ya da yeri değişen bir adım siteyi kırabilir.
-İki faz vardır ve **ikisi karıştırılmamalıdır**.
+Bu prosedür mevcut 005 production şeması içindir. Yeni boş kurulumda önce
+`schema.sql` → `001` → `002` → `003` → `004` → `005` uygulanır.
+Uygulanmış eski migration dosyaları tekrar çalıştırılmaz. `inventory.sql`
+yalnız POST-006 sözleşmesidir; eski PRE/POST-003 gate olarak kullanılmaz.
 
-### Kritik kural — dağıtım tetikleyicisi
+1. DB backup/snapshot al; Auth geri kazanım ve bakım penceresini planla.
+2. **PRE-006 read-only inventory:** `supabase/pre_006_inventory.sql` çalıştır.
+   Yalnız 005 ve önceki kolonlara başvurur. Toplam profil, admin/teacher/user
+   sayıları, teacher/admin kimlikleri ve Auth email, canonical sos401
+   atamaları, aktif legacy davetler ve seçili anonymous/provider metadata raporlanır.
+3. Legacy teacher/user/sos401 sonuçlarını değerlendir ve kararını kaydet.
+   Admin bulunması otomatik FAIL değildir. Teacher=0: legacy Auth migration
+   **N/A**. Teacher>0: [TEACHER-SETUP.md](TEACHER-SETUP.md) uyarınca açık
+   migration planı hazırlanmadan production apply edilmez; plan uygulanıp
+   doğrulanmadan frontend deploy edilmez. Legacy user varsa **preserve /
+   re-onboard / test hesabıysa silme planı** kararı gerekir; otomatik silme yoktur.
+   sos401=0 olsa da 006 cleanup savunması uygulanır.
+4. Gerçek blocker veya kararsız legacy geçiş varsa **DUR**. Auth/provider
+   ayarları ve mevcut uygulama için bakım penceresi doğrulansın: 006 eski
+   `davet_kullan` istemci erişimini kapatır.
+5. `supabase/migrations/006_self_registration_invites.sql` uygula.
+6. Kararlaştırılmış **explicit POST-006 legacy backfill** uygula. 006 sadece
+   eski teacher durumunu approved yapar; username/Auth email migration yapmaz.
+   Username canonical/benzersiz/rezerve olmayan, `auth_login_email` internal
+   sözleşmesine uygun ve Auth ile aynı olmalıdır. Adminin mevcut takma ad
+   girişi ayrı sözleşmedir; admin username eksikliği otomatik blocker değildir.
+7. **POST-006 inventory:** `psql <baglanti> -v ON_ERROR_STOP=1 -v mod=POST
+   -f supabase/inventory.sql`. A–G/G2/K/L **0 satır**; H/I/J bilgi amaçlıdır.
+   Profiles direct INSERT policy ve anon/authenticated INSERT privilege
+   **olmamalı**; SELECT/UPDATE, membership, ACL ve teacher korumaları bulunmalı.
+   Ham policy/function gövdelerini depo ile karşılaştır; katalog alt dize
+   kontrolü gerçek runtime veya tam gövde eşitliği kanıtı değildir.
+8. SQL runtime/contract verification yap. Önce yerelde
+   `pwsh -NoProfile -File scripts/runtime_006_security_test.ps1`: T01–T25
+   gerçek SQL/RLS olarak PASS olmalı. Gerçek Supabase Auth/Storage/HTTP
+   davranışı için [LIVE-VALIDATION.md](LIVE-VALIDATION.md) geçerlidir.
+9. Registration smoke: DB 006 üzerinde yeni frontend adayını yerel/staging
+   ortamda doğrula; yanlış kod membership vermez, student user/class_year olur.
+10. Teacher pending smoke: user/pending, başvuru ekranı, upload/member-write
+    kapalı; mevcut okuma davranışı korunur.
+11. Admin approval smoke: approve → teacher/approved → ders ataması → yalnız
+    atanmış derste direct publish. Reject → rejected ve upload kapalı.
+12. **Frontend deploy. Frontend DB 006'dan önce deploy edilmez.**
+    `.github/workflows/deploy.yml` main push ile yayın yapar; main push bir
+    dağıtım işlemidir. Bu remediation turunda push/deploy yapılmaz.
+13. Yayın sonrası `scripts/smoke.sh` çalıştır.
+14. **4 öğrenci sınıfı + 1 teacher production invite kodunu** yalnız
+    `admin_davet_kodu_olustur` RPC/helper ile oluştur (EK B). Bunlar smoke
+    fixture kodları değil, operatörün güvenli ortamda ürettiği gerçek kodlardır.
+15. Final UI verification yap; admin/student/teacher giriş, pending/rejected,
+    dosya erişimi ve çıkış/yenileme davranışını doğrula.
 
-`.github/workflows/deploy.yml` **`push: branches: [main]`** ile tetiklenir.
-Yani:
+Üretim smoke hesapları ve geçici kodlar ayrıca operatörce yönetilir; yerel
+harness production'a bağlanmaz. Başarısız gate atlanmaz. Geri dönüş için
+bakım penceresi ve snapshot/forward fix kullanılır; eski migration/anon
+kayıt modeline kontrolsüz dönüş yapılmaz.
 
-> **`app.js`'i yayına almak = `main`'e push etmek.**
-> "Önce app.js'i yayınla, sonra commit/push et" diye bir sıra YOKTUR;
-> push'un kendisi dağıtımdır.
+### Residual risk: username enumeration (P2, blocker değil)
 
-Bu yüzden veritabanı göçü push'tan **önce**, arayüz testleri push'tan
-**sonra** yapılır.
-
-### İki doğrulama türü — karıştırma
-
-| Tür | Nedir | Neye ihtiyaç duyar | Nerede |
-|---|---|---|---|
-| **VERİTABANI DOĞRULAMASI** | RLS/politika davranışı; tarayıcı konsolundan doğrudan Supabase API çağrıları | Yalnızca uygulanmış göç. **Yeni `app.js` GEREKMEZ** | `LIVE-VALIDATION.md` B, B.2, C bölümleri |
-| **ARAYÜZ DOĞRULAMASI** | Damgasız oturumun panele düşmemesi gibi arayüz davranışları | **Yayınlanmış yeni `app.js` GEREKİR** | `LIVE-VALIDATION.md` A, B.3 bölümleri |
-
-Veritabanı doğrulaması push'tan önce yapılabilir ve yapılmalıdır: bir sorun
-çıkarsa henüz hiçbir şey yayınlanmamış olur.
-
----
-
-### FAZ 1 — İlk kurulum (bir kez; halihazırda tamamlandı)
-
-1. `supabase/schema.sql` çalıştırılır (bölüm 12).
-2. `supabase/migrations/001_davet_kodlari.sql` çalıştırılır.
-3. En az bir davet kodu tanımlanır (göç dosyası bölüm 6).
-4. `supabase/migrations/002_denetim_kaydi.sql` çalıştırılır.
-5. Yönetici hesabıyla giriş yapılıp onay kuyruğunun çalıştığı doğrulanır.
-6. `config.js` → `INVITE_MODE: "server"`, `LOCAL_INVITE_CODE` satırı **silinir**.
-
----
-
-### FAZ 2 — Launch gate sertleştirmesi (003 + 004 + yeni `app.js`)
-
-Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
-
-1. **Envanter — göçten ÖNCE, `PRE` modunda.** `supabase/inventory.sql`
-   **mod zorunludur**:
-   ```
-   psql "<baglanti>" -v mod=PRE -f supabase/inventory.sql
-   ```
-   **A, B, C, D, E, F, G bloklarının HEPSİ 0 satır döndürmelidir.**
-
-   > **`mod` neden zorunlu:** envanterin tek modlu ilk sürümü 003 SONRASI
-   > durumu zorunlu kılıyordu, runbook ise onu 003'ten ÖNCE çalıştırıp
-   > "hepsi 0 satır" bekliyordu — mantıksal olarak imkânsız bir kapı.
-   > Canlı preflight bunu doğruladı (A'da 1, B'de 4 bulgu). Operatörün
-   > öğreneceği tek ders "kırmızıyı yok say" olurdu; tam olarak kaçınmak
-   > istediğimiz şey. `mod` verilmezse psql hata verip DURUR.
-   >
-   > `PRE` modunda blok F, SL-01/03/09 sertleştirmelerinin **hiçbirinin**
-   > uygulanmamış olduğunu doğrular; `POST` modunda **hepsinin** uygulanmış
-   > olduğunu. Simetrik olduğu için "kısmen uygulanmış" durumu da yakalar.
-
-2. **Sapma varsa DUR.** Satır dönen her blok, üretimde depoda izi olmayan bir
-   politika / gövde / RLS / GRANT sapması olduğunu gösterir. Açıklanmadan
-   3. adıma geçilmez. Özellikle B bloğu önemlidir: adı doğru olduğu hâlde
-   gövdesi `using (true)` yapılmış bir politikayı yalnızca o yakalar.
-
-    **Blok K ayrıca okunur** (kapıyı bloklamaz): `denetim_kaydi` ve
-   `davet_dogrulamalari` üzerinde `anon`/`authenticated` rollerinde kalan
-   `TRUNCATE` ayrıcalığını listeler. TRUNCATE **RLS'i aşar**; göç 001/002
-   yalnızca `insert, update, delete` revoke ettiği için geride kalmıştır.
-   Genel API yüzeyinden erişilemez (roller NOLOGIN, PostgREST TRUNCATE
-    üretmez) ama ayrı bir göçle kapatılmalıdır.
-3. **`supabase/migrations/003_launch_gate_hardening.sql` çalıştırılır.**
-   *Arşiv okumasını ve depo yüklemesini davet damgasına bağlar, gönderimde
-  dosya sahipliğini zorunlu kılar, yetim dosya temizliğini açar. Göç,
-  politikalara dokunmadan ÖNCE ön koşulları doğrular: `public.materials` ve
-  `storage.objects` var olmalı, ikisinde de RLS açık olmalı, ayrıca
-  `davet_dogrulandi_mi()`, `is_admin()` ve `storage.foldername()`
-  bulunmalıdır. Dosya tek bir transaction'dır: hata olursa hiçbir şey
-  değişmez.*
-4. **Envanter — göçten SONRA, `POST` modunda.**
-   ```
-   psql "<baglanti>" -v mod=POST -f supabase/inventory.sql
-   ```
-   A–G yine 0 satır dönmeli. Blok F artık beş sertleştirmenin **hepsinin**
-   uygulandığını doğrular: `materyal_yetim_silme` politikası ve
-   `dosya_materyale_bagli_mi` fonksiyonu var olmalı; `materials_okuma`,
-   `materyal_okuma` ve `materyal_yukleme` gövdelerinde `davet_dogrulandi_mi`,
-   `materials_gonderim` gövdesinde `foldername` geçmelidir. Blok H'deki ham
-   döküm depo dosyalarıyla gözle karşılaştırılır (blok B gerekli koşulu
-   denetler, tam gövde eşitliğini değil).
-5. **Residual privilege hardening — `004_revoke_public_table_ddl_privs.sql`.**
-    003 `POST` gate geçtikten sonra uygulanır; kapsamı yalnızca
-    `public.denetim_kaydi` ve `public.davet_dogrulamalari` tablolarında
-    `anon/authenticated` için `TRUNCATE, REFERENCES, TRIGGER` revoke etmektir.
-
-    Karar notu (K.2 = Seçenek B): `public.denetim_kaydi` üzerinde
-    `authenticated` için doğrudan `SELECT` grant TASARLANMAMIŞTIR.
-    `denetim_okuma` politikası savunma-in-depth olarak kalır.
-
-    004 sonrası envanterde Blok K için beklenen sonuç: **0 satır**.
-
-6. **Teacher role migration — `005_teacher_role.sql`.**
-  `profiles.role` kümesi `teacher` ile genişler, `teacher_courses` tablosu
-  ve öğretim elemanı için doğrudan yayın (server-side trigger) akışı kurulur.
-  Bu adımda policy/fonksiyonlar güncellendiği için ardından envanter tekrar
-  çalıştırılır.
-
-7. **PRE-006 legacy backfill kapısı (zorunlu).**
-   006'dan önce açılmış hesaplarda `profiles.username` / `profiles.auth_login_email`
-   boş olabilir. 006 frontend'i yayımlanmadan önce aşağıdaki sorgu çalıştırılır:
-   ```sql
-   select p.id, p.role, p.display_name, u.email as auth_email, p.username, p.auth_login_email
-     from public.profiles p
-     left join auth.users u on u.id = p.id
-    where p.username is null or p.auth_login_email is null
-    order by p.created_at;
-   ```
-   Satır dönerse, deterministik username önerisi üretilir ve kontrollü backfill
-   uygulanır; backfill tamamlanmadan 006 frontend yayını yapılmaz.
-
-8. **Self-registration migration — `006_self_registration_invites.sql`.**
-   Bu adım, profile doğrudan INSERT yolunu kapatır, orphan Auth erişimini
-   profile membership ile sınırlar, sos401 canonical blokajını ve kayıt
-   güvenlik sınırlarını uygular.
-
-9. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
-   B.2 (davetsiz oturum) ve C (Storage) çalıştırılır. Bunlar konsol/API
-   testleridir; **eski `app.js` ile çalışır.** Hepsi geçmeden ilerlenmez.
-10. **Depo değişiklikleri commit + push edilir** (`main`).
-11. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
-   "GitHub Pages'e yayınla" işinin yeşil olduğu doğrulanır. İş, gizli anahtar
-   taraması / inline betik denetimi / bağımlılık hash'i / yayın klasörü
-   doğrulaması kapılarını da çalıştırır.
-12. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
-13. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
-   bayt bayt yapar; bayat CDN önbelleği burada yakalanır).
-14. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
-  B.3 (UI-01…UI-03, damgasız oturum yönlendirmesi) çalıştırılır. **Bunlar
-  yeni `app.js` gerektirir, bu yüzden 11. adımdan sonradır.**
-15. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
-    test kullanıcıları, geçici davet kodu ve artık dosyalar silinir.
-16. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
-    ardından doğrulama:
-    ```bash
-    curl -sSI https://arsiv.sosyolab.tr | grep -iE 'strict-transport|content-security|x-frame|x-content-type|referrer|permissions'
-    ```
-    TLS taraması <https://www.ssllabs.com/ssltest/analyze.html?d=arsiv.sosyolab.tr>
-    (hedef **A** ya da üstü), CSP ihlali olmadığının konsoldan doğrulanması,
-    MFA (bölüm 5) ve zararlı yazılım taraması (bölüm 4).
-
-### Geri dönüş
-
-3. adım sorun çıkarırsa: `003` dosyasının sonundaki geri alma bloğu
-çalıştırılır (o da tek transaction'dır). 9. adım sorun çıkarırsa: önceki
-commit'e dönülüp push edilir; Pages eski `app.js`'i yeniden yayınlar.
-Veritabanı ve arayüzü birbirinden bağımsız geri alabilmek bu sıranın
-kazancıdır.
+`kullanici_email_bul` anon'a yalnız internal `@auth.sosyolab.local` adresini
+verir; kişisel Auth email dönmez. Bilinmeyen username için deterministik
+fallback, bilinen için rastgele internal email döndüğü için bu iki sonuç
+karşılaştırılarak username varlığı tahmin edilebilir. UI yanlış username
+ve yanlış parola için aynı `Kullanıcı adı veya parola hatalı.` mesajını verir;
+bu RPC farkını ortadan kaldırmaz. Bu tur mimari yeniden yazılmaz; HMAC/server
+secret tarayıcıya veya SQL kaynağına gömülmez. Platform rate limit ve izleme
+operasyonel kontrol olarak ayrıca doğrulanır.
 
 ---
 
@@ -675,172 +585,37 @@ olmamalı. `connect-src` ihlali görürsen Supabase alan adı iki yerde de
 
 ---
 
-## EK B — Davet kodu üretim geçişi: kesin adımlar
+## EK B — 006 production davet üretim sözleşmesi
 
-Bu geçiş `config.js` içindeki düz metin `LOCAL_INVITE_CODE` değerini
-tamamen ortadan kaldırır. Sıra değiştirilemez.
-
-### B.0 Ön koşul
-
-```sql
--- pgcrypto "extensions" şemasında mı?
-select n.nspname as sema from pg_extension e
-  join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pgcrypto';
-```
-`extensions` dönmüyorsa göç dosyası kurulumda anlaşılır bir hata verir;
-o hatadaki yönlendirmeyi izleyin.
-
-### B.1 Şemayı güncelle
-
-SQL Editor'de **sırayla**:
-
-1. `supabase/schema.sql` — tamamını çalıştır.
-   *Neden tekrar: `profiles_rol_koru` ve `profiles_rol_varsayilan`
-   fonksiyonları düzeltildi. Bu düzeltme olmadan yeni bir yönetici hesabı
-   oluşturulamaz (role sessizce `user`'a düşer).*
-   Yalnızca o iki fonksiyonu güncellemek yeterliyse bölüm 3'teki iki
-   `create or replace function` bloğunu çalıştırmak da olur.
-
-2. `supabase/migrations/001_davet_kodlari.sql` — tamamını çalıştır.
-
-3. `supabase/migrations/002_denetim_kaydi.sql` — tamamını çalıştır.
-   *001'den sonra çalıştırılmalı, aksi hâlde davet damgası denetimi atlanır
-   (dosya bunu NOTICE ile bildirir ve hata vermez).*
-
-4. `supabase/migrations/003_launch_gate_hardening.sql` — tamamını çalıştır.
-  *001'den sonra çalıştırılmalı; `public.materials` ve `storage.objects`
-  tabloları yoksa, bu tablolarda RLS açık değilse ya da
-  `davet_dogrulandi_mi()`, `is_admin()`, `storage.foldername()` yoksa dosya
-  en başta anlaşılır bir hata verip durur.
-   Bu göç **beş** politikayı yeniden kurar (`materials_okuma`,
-   `materials_gonderim`, `materyal_okuma`, `materyal_yukleme` ve yeni
-   `materyal_yetim_silme`); hiçbir veriye dokunmaz.*
-
-   **Dosya tek bir transaction'dır (`begin; … commit;`).** Bir hata olursa
-   tamamı geri alınır; politika düşmüş ama yenisi kurulmamış ara durum
-   oluşmaz. Bu ara durum test edildi: transaction olmadan aynı hata arşivi
-   **yönetici dahil** herkese kapatıyordu (12 politika, tüm roller 0 satır);
-   transaction ile hiçbir şey değişmedi (13 politika, erişim aynı).
-
-   **UYARI — göç sırası:** 003, 001'deki `materials_gonderim` politikasını
-   yeniden kurar. **003'ten sonra 001'i tekrar çalıştırırsanız** gönderimdeki
-   dosya sahipliği koşulu geri alınır ve SL-09 yeniden açılır.
-   `supabase/inventory.sql` B bloğu bu durumu yakalar.
-
-5. `supabase/migrations/004_revoke_public_table_ddl_privs.sql` — tamamını çalıştır.
-  *Residual hardening adımıdır: `public.denetim_kaydi` ve
-  `public.davet_dogrulamalari` tablolarında `anon`/`authenticated` için
-  `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır.*
-  *K.2 kararı Seçenek B'dir: `denetim_kaydi` için authenticated'a doğrudan
-  `SELECT` grant tasarlanmaz; `denetim_okuma` politikası savunma-in-depth
-  olarak kalır.*
-
-6. `supabase/migrations/005_teacher_role.sql` — tamamını çalıştır.
-  *`teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için
-  ders-sahipliği kontrollü doğrudan yayın akışını ekler.*
-
-7. **PRE-006 legacy backfill kontrolü** (frontendden önce zorunlu):
-   ```sql
-   select p.id, p.role, p.display_name, u.email as auth_email, p.username, p.auth_login_email
-     from public.profiles p
-     left join auth.users u on u.id = p.id
-    where p.username is null or p.auth_login_email is null
-    order by p.created_at;
-   ```
-   Satır dönerse backfill tamamlanmadan devam etme.
-
-8. `supabase/migrations/006_self_registration_invites.sql` — tamamını çalıştır.
-   *Self-registration güvenlik sınırlarını sıkılaştırır: profile direct insert
-   kapanır, orphan Auth erişimi profile membership ile sınırlandırılır, sos401
-   canonical blokajı ve teacher approval kontrolleri uygulanır.*
-
-Doğrula:
+Production self-registration kodları **SADECE**
+`public.admin_davet_kodu_olustur` RPC/helper prosedürüyle oluşturulur.
+Doğrudan `davet_kodlari INSERT` production onboarding için kullanılmaz.
+Helper 32 hex formatını (128-bit rastgelelik kapasitesi) zorunlu kılar;
+operatör kodu CSPRNG ile üretmelidir. Format tek başına rastgelelik kanıtı değildir.
 
 ```sql
-select to_regprocedure('public.davet_kullan(text)')        as rpc,
-       to_regclass('public.davet_dogrulamalari')           as damga_tablosu,
-       to_regclass('public.denetim_kaydi')                 as denetim_tablosu;
--- Üçü de NULL olmamalı.
-
-select polname, cmd from pg_policies
- where tablename = 'materials' and polname = 'materials_gonderim';
--- Var olmalı.
+-- Güvenli operatör oturumu: değeri yalnız güvenli kanaldan dağıt, repoya yazma.
+select upper(encode(extensions.gen_random_bytes(16), 'hex'));
+-- Her sınıf için 1,2,3,4 ayrı helper çağrısı; gerçek değerleri burada saklama.
+select public.admin_davet_kodu_olustur(
+  '<32_HEX_KOD>', 'student', 1::smallint, 'STUDENT_GRADE_1',
+  now() + interval '90 days', 200);
+select public.admin_davet_kodu_olustur(
+  '<32_HEX_KOD>', 'teacher', null, 'TEACHER',
+  now() + interval '30 days', 50);
 ```
 
-### B.2 İlk davet kodunu oluştur
+Tabloda plaintext değil tuzlu bcrypt özeti vardır. Mevcut bcrypt CHECK düz
+metin saklama kazasını engeller; **plaintext kod formatını veya entropisini
+hash üzerinden CHECK ile kanıtlamak mümkün değildir**. Bu yüzden sahte bir
+entropy CHECK eklenmedi; helper giriş kontrolü ve operatör prosedürü zorunludur.
+SQL Editor/DB owner doğrudan hash insert ile bu prosedürü aşabilir; bu
+ayrıcalıklı operasyon sınırı bir residual risktir.
 
-```sql
--- 1) Tahmin edilemez bir kod üret ve ÇIKTIYI GÜVENLİ YERE AL:
-select upper(encode(extensions.gen_random_bytes(16), 'hex')) as davet_kodu; -- 32 hex = 128-bit
-
--- 2) Üretilen değeri <KOD> yerine koyup çalıştır:
-insert into public.davet_kodlari (kod_ozeti, etiket, gecerlilik_sonu, azami_kullanim)
-values (extensions.crypt(upper('<KOD>'), extensions.gen_salt('bf', 10)),
-        '2026-2027 Güz', '2027-02-01', 300);
-
--- 3) Kodun gerçekten doğrulandığını sına (kod DB'de düz metin durmuyor):
-select etiket, (extensions.crypt(upper('<KOD>'), kod_ozeti) = kod_ozeti) as eslesti
-  from public.davet_kodlari where aktif;
--- eslesti = true olmalı.
-```
-
-Kodu öğrencilere ilet. **Bu kodu hiçbir dosyaya, commit'e ya da bu depoya
-yazma.** SQL Editor geçmişini temizle.
-
-### B.3 Sunucu modunu aç
-
-Bu adım **yalnızca 006 + legacy backfill doğrulaması bittiğinde** yapılır.
-Frontend 006, SQL 006 uygulanmadan yayımlanmamalıdır.
-
-`config.js` dosyasında:
-
-```diff
-   SUPABASE_ANON_KEY: "sb_publishable_...",
-
--  INVITE_MODE: "local",
--  LOCAL_INVITE_CODE: "DEMO2026"
-+  INVITE_MODE: "server"
- };
-```
-
-`LOCAL_INVITE_CODE` satırı **silinir**, boş bırakılmaz. `INVITE_MODE`
-`"server"` olduğunda `app.js` bu değeri hiç okumaz, ama dosyada kalması
-gereksiz bir bilgi sızıntısıdır.
-
-### B.4 Yayınla
-
-Değişikliği `main` dalına gönder. Actions akışı yayından önce şunları
-denetler: gizli anahtar taraması, satır içi betik/stil denetimi,
-`vendor/supabase-js` SHA-256 doğrulaması, yayın dosya envanteri.
-
-Yayından sonra doğrula:
-
-```bash
-curl -sS https://arsiv.sosyolab.tr/config.js | grep -i invite
-# Beklenen tek satır:  INVITE_MODE: "server"
-# "LOCAL_INVITE_CODE" ya da "DEMO2026" GÖRÜNMEMELİ.
-```
-
-### B.5 Retest
-
-Temiz bir tarayıcı profilinde:
-
-| # | Adım | Beklenen |
-|---|---|---|
-| 1 | 10 haneli numara + **eski** kod (`DEMO2026`) | *"Davet kodu geçersiz ya da süresi dolmuş."* Giriş **olmaz**. |
-| 2 | 10 haneli numara + **yeni** kod | Giriş olur, panel açılır. |
-| 3 | Konsol: `await (window.supabase.createClient(SOSYOLAB_CONFIG.SUPABASE_URL, SOSYOLAB_CONFIG.SUPABASE_ANON_KEY)).rpc('davet_kullan', {p_kod:'DEMO2026'})` | `data: false` |
-| 4 | Materyal Paylaş → küçük bir PDF gönder | Başarılı. (Davet damgası gönderim iznini açtı.) |
-| 5 | Yeni gizli pencere, giriş yapmadan konsol:<br>`await (window.supabase.createClient(...)).auth.signInAnonymously()` sonra `.from('materials').insert({...})` | Reddedilir (`42501`) — davet damgası olmayan anonim oturum gönderim yapamaz. |
-| 6 | SQL Editor: `select kullanim_sayisi from public.davet_kodlari where etiket='2026-2027 Güz';` | Giriş yapan öğrenci sayısı kadar. |
-
-5. adım bu geçişin **asıl kazancıdır**: önceki durumda davet kodunu hiç
-bilmeyen biri anonim oturum açıp gönderim yapabiliyordu.
-
-### B.6 Geri alma
-
-Sorun çıkarsa: `config.js` içinde `INVITE_MODE: "local"` ve
-`LOCAL_INVITE_CODE` geri eklenir, yayınlanır. Veritabanı tarafında bir şey
-geri almak gerekmez — `materials_gonderim` politikası admin ve daveti
-doğrulanmış kullanıcıya açık kalır, ama yeni kullanıcılar damga alamaz.
-Tam geri alma için 001 dosyasının sonundaki blok kullanılır.
+006 eski kayıtları `audience_type='legacy'` yapar ve eski `davet_kullan(text)`
+EXECUTE'unu PUBLIC/anon/authenticated için kaldırır. Legacy kodlar yeni
+student/teacher registration kodu olarak kullanılmaz. Öğrenciler username +
+password + sınıf davetiyle; öğretmenler teacher daveti + ad soyadla kayıt olur.
+`INVITE_MODE='server'` kullanılır, `LOCAL_INVITE_CODE` yayın yapılandırmasında
+yer almaz. Email provider açık ve internal email kayıtlarında confirmation
+ayarının registration akışına uygun olması gerekir.

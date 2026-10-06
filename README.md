@@ -94,49 +94,28 @@ güvenilir bir taraf olmadığından akış baştan reddedilir.
 Üretimde hedeflenen mod budur; sıralama için
 `docs/DEPLOYMENT-SECURITY.md` bölüm 11.
 
-### PRE-006 geçiş kontrolü (legacy hesap uyumluluğu)
+### PRE-006 ve POST-006 geçiş kontrolü
 
-`006` öncesi açılmış hesaplar için `username` ve `auth_login_email` alanları
-boş olabilir. 006 frontend'i yayımlanmadan önce bu hesaplar tespit edilip
-backfill planı uygulanmalıdır.
+PRE-006 için [supabase/pre_006_inventory.sql](supabase/pre_006_inventory.sql)
+005 şemasında read-only çalıştırılır. Toplam ve role sayıları, mevcut
+teacher/admin Auth email, canonical sos401 atamaları, aktif legacy davetler
+ve ayırt edici anonymous/provider metadata raporlanır. 006 ile gelen
+kolonlara başvurmaz. Admin satırı bulunması otomatik FAIL değildir.
 
-1. **Legacy adaylarını listele:**
-   ```sql
-   select p.id,
-          p.role,
-          p.display_name,
-          u.email as auth_email,
-          p.username,
-          p.auth_login_email
-     from public.profiles p
-     left join auth.users u on u.id = p.id
-    where p.username is null
-       or p.auth_login_email is null
-    order by p.created_at;
-   ```
-2. **Otomatik tahmini username üret (öneri çıktısı):**
-   ```sql
-   with aday as (
-     select p.id,
-            lower(regexp_replace(
-              coalesce(nullif(btrim(p.display_name), ''), 'kullanici'),
-              '[^a-z0-9._]+', '', 'gi'
-            )) as taban
-       from public.profiles p
-      where p.username is null
-   )
-   select id,
-          case
-            when length(taban) between 4 and 24 then taban
-            else 'user.' || substr(md5(id::text), 1, 12)
-          end as onerilen_username
-     from aday;
-   ```
-3. **Backfill'i açıkça uygula:** önerilen username'leri çakışma kontrolüyle
-   `profiles.username` alanına yaz; `auth_login_email` için yalnızca iç
-   (`@auth.sosyolab.local`) eşlemeler kullan.
-4. **Deploy sırası:** önce SQL zinciri (`001→...→006`) + backfill doğrulaması,
-   sonra 006 frontend yayını. Frontend 006, DB 006'dan önce yayımlanmamalı.
+Teacher count=0: Auth migration N/A. Teacher count>0: production apply
+öncesinde açık migration planı blocker'dır; plan uygulanıp doğrulanmadan
+frontend deploy edilmez. Legacy user için preserve / re-onboard / test
+hesabıysa silme planı kararı gerekir. sos401=0 olsa da 006 cleanup uygulanır.
+
+006 apply sonrasında kararlaştırılan explicit legacy backfill yapılır;
+username ve internal Auth login kimliği hesabın Auth sözleşmesiyle hizalanır.
+Auth email değişikliği gerekiyorsa güvenli operator-side Auth Admin API
+kullanılır. Browser/service_role yöntemi kullanılmaz. Ayrıntı:
+[TEACHER-SETUP.md](docs/TEACHER-SETUP.md).
+
+POST-006 için `supabase/inventory.sql` (`-v mod=POST`) kullanılır. A–G/G2/K/L
+0 satır olmalı; self profile INSERT policy/yetkisi olmaması güvenli beklentidir.
+Frontend DB 006'dan önce deploy edilmez. Tam sıra bölüm 11'dedir.
 
 ## Güvenlik sınırı nerede
 
@@ -236,15 +215,10 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    select id, role from public.profiles where id = 'BURAYA_UUID';
    ```
 
-   > **Önemli:** `role` sonucu `admin` değil `user` çıkıyorsa, `schema.sql`
-   > dosyasının güncel sürümünü henüz uygulamamışsınız. Rol koruma
-   > trigger'ları eski hâlinde bu insert'i sessizce geri alıyordu: trigger
-   > SECURITY DEFINER olduğu için her çağrıda çalışıyor ve içindeki
-   > `is_admin()` SQL Editor'de `auth.uid()` NULL olduğundan false dönüyordu.
-   > Düzeltilmiş sürüm, istek bağlamı olmayan (yani güvenilir sunucu
-   > tarafından gelen) yazmayı serbest bırakır; tarayıcıdan gelen yazma ise
-   > RLS'i geçemediği için trigger'a hiç ulaşamaz. `schema.sql`'i yeniden
-   > çalıştırıp insert'i yineleyin.
+   > Admin rolü doğrulanmadan devam etmeyin; güvenli operatör kurulumunu
+   > inceleyin. 006 uygulanmış projede `schema.sql` veya eski migration'ları
+   > tekrar çalıştırmayın: kaldırılan self INSERT policy'si ve eski ACL'ler
+   > yeniden açılabilir. Düzeltme açıkça planlanmış forward fix olmalıdır.
 
 5. **Genel anahtarları gir** — Project Settings → API:
 
@@ -280,24 +254,30 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    > 003, 001'deki `materials_gonderim` politikasını yeniden kurar. **001'i
    > 003'ten sonra tekrar çalıştırmayın** — dosya sahipliği koşulu geri alınır.
 
-   **Göçten önce ve sonra** `supabase/inventory.sql` çalıştırılır — **mod
-   zorunludur**:
+   **006 gate ayrımı:** DB snapshot → `supabase/pre_006_inventory.sql`
+   (005 şeması, read-only) → legacy teacher/user/sos401 kararları → blocker
+   varsa DUR → 006 apply → explicit POST-006 legacy backfill →
+   `supabase/inventory.sql` (`-v mod=POST`, A–G/G2/K/L 0 satır) → SQL
+   runtime/contract verification → registration/teacher pending/admin approval
+   smoke → frontend deploy → `scripts/smoke.sh` → 4 student + 1 teacher
+   production invite → final UI verification.
 
-   ```
-   psql "<baglanti>" -v mod=PRE  -f supabase/inventory.sql   # 003'ten önce
-   psql "<baglanti>" -v mod=POST -f supabase/inventory.sql   # 003'ten sonra
-   ```
+   **Frontend DB 006'dan önce deploy edilmez.** Admin satırı otomatik FAIL
+   değildir. Teacher count=0 ise Auth migration N/A; >0 ise açık migration
+   planı production apply öncesi, uygulaması ve doğrulaması frontend öncesi
+   zorunludur. Legacy user için preserve/re-onboard/test hesabı silme planı
+   kararı kaydedilir. sos401=0 olsa da cleanup defense uygulanır.
 
-   **A–G bloklarının hepsi 0 satır döndürmelidir.** Politika adları doğru
-   olduğu hâlde gövdeleri değiştirilmiş olabilir; bunu yalnızca B bloğu
-   yakalar. Blok F moda göre SL-01/03/09'un kapalı ya da açık olmasını
-   doğrular. Blok K bilgi amaçlıdır ama okunmalıdır: `TRUNCATE` ayrıcalığı
-   RLS'i aşar ve 003 `POST` gate geçildikten sonra 004 ile kapatılmalıdır.
-   K.2 kararı Seçenek B'dir: `denetim_kaydi` için authenticated'a doğrudan
-   `SELECT` grant tasarlanmamıştır.
-   Adım adım sıra: `docs/DEPLOYMENT-SECURITY.md` bölüm 11, FAZ 2.
+   Davet kodları yalnız `admin_davet_kodu_olustur` ile CSPRNG 32 hex/128-bit
+   formatında üretilir; tabloda hash olduğu için CHECK entropiyi kanıtlayamaz.
+   `davet_kullan` istemci erişimi 006 ile kapanır. Pending/rejected teacher
+   okuma davranışını korur; materyal/storage upload RLS ile kapalıdır.
+   Username enumeration P2 residual risktir, release blocker değildir;
+   kişisel email anon'a dönmez, yanlış username/parola UI mesajı aynıdır.
 
-   Sıra ve doğrulama adımları: `docs/DEPLOYMENT-SECURITY.md` bölüm 11.
+   Yerel runtime kanıtı: `pwsh -NoProfile -File scripts/runtime_006_security_test.ps1`
+   (`postgres:16` yerelde bulunmalı; ağ kapalı, geçici konteyner, T01–T25).
+   Release sırası: [DEPLOYMENT-SECURITY.md](docs/DEPLOYMENT-SECURITY.md) bölüm 11.
 
 7. **Barındırma güvenliği** — GitHub Pages HTTP başlığı ayarlayamaz.
    HSTS, `frame-ancestors`, `nosniff`, `Permissions-Policy` ve hız sınırlama

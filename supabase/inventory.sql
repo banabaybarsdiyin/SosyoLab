@@ -1,83 +1,10 @@
--- ============================================================================
--- SosyoLab — canlı yetkilendirme envanteri (SALT OKUMA, İKİ MODLU)
--- ============================================================================
---
--- NE İÇİN
--- -------
--- Denetim bulgusu SL-02: depo dosyalarındaki RLS politikaları doğru yazılmış
--- olabilir ama bu, ÜRETİMDEKİ projenin gerçekten o politikalarla
--- yapılandırıldığını kanıtlamaz. PostgreSQL'de aynı komut için tanımlı
--- politikalar OR ile birleşir; dashboard'dan elle eklenmiş tek bir izin verici
--- politika erişimi sessizce genişletir ve dışarıdan sonda atarak görülemez.
---
--- ############################################################################
--- KULLANIM — MOD ZORUNLUDUR
--- ############################################################################
---
---   psql ... -v mod=PRE   -f supabase/inventory.sql     # 003'ten ÖNCE
---   psql ... -v mod=POST  -f supabase/inventory.sql     # 003'ten SONRA
---
--- mod verilmezse psql "syntax error at or near :" ile DURUR. Bu bilinçli:
--- sessizce yanlış moda düşmek, yanlış güvenin ta kendisi olurdu.
---
--- ############################################################################
--- NEDEN İKİ MOD (canlı preflight bulgusu)
--- ############################################################################
---
--- İlk sürüm tek moddu ve 003 SONRASI durumu zorunlu kılıyordu; runbook ise
--- onu 003'ten ÖNCE çalıştırıp "hepsi 0 satır" bekliyordu. Bu mantıksal olarak
--- imkânsızdı: 003 uygulanmadan önce SL-01/03/09 zaten açıktır, dolayısıyla
--- kapı her zaman kırmızı yanardı. Canlı koşum bunu doğruladı (A'da 1, B'de 4
--- bulgu). Operatörün öğreneceği ders "kırmızıyı yok say" olurdu — tam olarak
--- kaçınmak istediğimiz şey.
---
--- Çözüm: hangi koşulun hangi modda zorunlu olduğunu AÇIKÇA ayırmak.
---
---   MOD-BAĞIMSIZ (her iki modda zorunlu):
---     * hiçbir politika tamamen açık (true) olamaz
---     * sahiplik / admin / status=pending koşulları yerinde olmalı
---     * politika adları, komutları, rol kümesi, PERMISSIVE olması
---     * RLS açık olmalı (storage.buckets dahil)
---     * beklenmeyen tablo izni olmamalı VE zorunlu tablo izni eksik olmamalı
---       (blok D iki yönlüdür — bkz. o bloğun başındaki not)
---     * yetkilendirme fonksiyonlarının EXECUTE/search_path durumu
---
---   MODA BAĞLI (blok F):
---     PRE  → SL-01/03/09 sertleştirmelerinin HİÇBİRİ uygulanmamış olmalı
---     POST → SL-01/03/09 sertleştirmelerinin HEPSİ uygulanmış olmalı
---
---   Blok F simetriktir: PRE'de "kısmen uygulanmış" durumu da yakalar
---   (birisi 003'ün parçasını elle çalıştırmışsa), POST'ta ise eksik kalanı.
---
--- ############################################################################
--- GEÇME ÖLÇÜTÜ:  A, B, C, D, E, F bloklarının HEPSİ 0 SATIR döndürmeli.
--- G–J blokları bilgi amaçlıdır, geçme ölçütü değildir.
--- ############################################################################
---
--- SALT OKUMA: yalnızca SELECT ve WITH. Hiçbir şey yazmaz, silmez, değiştirmez.
--- Kullanıcı verisi okumaz; parola, jeton, anahtar ya da davet kodu döndürmez.
---
--- UYARI — bu dosya neyi KANITLAMAZ:
--- Envanter, yapılandırmanın beklenen olduğunu gösterir. Politikaların gerçek
--- DAVRANIŞINI göstermez; davranış kanıtı docs/LIVE-VALIDATION.md'dir.
--- Ayrıca blok B "gerekli koşul" denetimi yapar, tam gövde eşitliği DEĞİL:
--- gerekli alt dizeyi içerip üstüne fazladan gevşetme eklenmiş bir gövdeyi
--- (ör. "... or 1=1") yakalamaz. Bunun için blok G'deki ham dökümü depo
--- dosyalarıyla gözle karşılaştırın.
--- ============================================================================
-
-
--- ############################################################################
--- 0. MOD ONAYI (bilgi — hangi modda çalıştığını çıktıya yazar)
--- ############################################################################
-
-select :'mod' as calisma_modu,
-       case upper(:'mod')
-         when 'PRE'  then '003 ONCESI: SL-01/03/09 acik OLMALI (blok F bunu dogrular)'
-         when 'POST' then '003 SONRASI: SL-01/03/09 kapali OLMALI (blok F bunu dogrular)'
-         else 'GECERSIZ MOD — yalnizca PRE ya da POST'
-       end as anlami;
-
+-- SosyoLab POST-006 güvenlik envanteri. SALT OKUMA.
+-- Kullanım: psql ... -v mod=POST -f supabase/inventory.sql
+-- PRE-006 için yalnız supabase/pre_006_inventory.sql kullanılır.
+-- A..G, G2, K ve L: 0 satır beklenir; H/I/J bilgi amaçlıdır.
+-- Katalog/gövde denetimi runtime davranış testinin yerine geçmez.
+-- Yanlış/eski mod non-zero SQL hatası verir.
+select 1 / case when upper(:'mod') = 'POST' then 1 else 0 end as post_006_mode;
 
 -- ############################################################################
 -- A. POLİTİKA ENVANTERİ — FAZLA / EKSİK / ROL / KOMUT
@@ -90,14 +17,13 @@ select :'mod' as calisma_modu,
 -- politikaya "alter policy ... to authenticated, anon" ile anon eklenmesi
 -- yalnızca rol denetimiyle yakalanır.
 --
--- materyal_yetim_silme YALNIZCA POST modunda beklenir (003 onu yaratır).
+-- materyal_yetim_silme zorunludur (003 onu yaratır).
 --
 -- 0 satır beklenir.
 
 with beklenen_tum(schemaname, tablename, policyname, cmd, mod) as (
   values
     ('public',  'profiles',            'profiles_kendi_okur',      'SELECT', 'HER'),
-    ('public',  'profiles',            'profiles_kendi_olusturur', 'INSERT', 'HER'),
     ('public',  'profiles',            'profiles_kendi_gunceller', 'UPDATE', 'HER'),
     ('public',  'teacher_courses',     'teacher_courses_okuma',          'SELECT', 'HER'),
     ('public',  'teacher_courses',     'teacher_courses_admin_ekleme',   'INSERT', 'HER'),
@@ -154,14 +80,14 @@ select
 -- B. POLİTİKA GÖVDESİ — MOD-BAĞIMSIZ ZORUNLU KOŞULLAR
 -- ############################################################################
 --
--- Buradaki koşullar 003'ten ÖNCE de SONRA da geçerli olmak ZORUNDADIR.
--- SL-01/03/09 sertleştirmeleri burada DEĞİL, blok F'de denetlenir.
+-- POST-006 zorunlu politika koşulları.
+-- 003'ten korunan SL-01/03/09 sertleştirmeleri ayrıca blok F'de denetlenir.
 --
 -- Bağımsız incelemenin kırdığı boşluk: adı doğru, gövdesi "using (true)".
 -- Alt dize araması kullanılıyor; pg_get_expr şema nitelemesini arama yoluna
 -- göre farklı basabilir (is_admin() ya da public.is_admin()).
 --
--- 0 satır beklenir — HER İKİ MODDA.
+-- 0 satır beklenir — POST-006 DURUMUNDA.
 
 select tablo, politika, komut, bulgu, left(ifade, 120) as ifade_basi
 from (
@@ -172,7 +98,7 @@ from (
     coalesce(p.qual, '') || case when p.with_check is not null
                                  then ' | WITH CHECK: ' || p.with_check else '' end as ifade,
     case
-      -- tamamen açık politika — her iki modda kabul edilemez
+      -- tamamen açık politika — POST-006 durumunda kabul edilemez
       when coalesce(p.qual, '')       ~ '^\s*\(?\s*true\s*\)?\s*$' then 'POLİTİKA TAMAMEN AÇIK (qual = true)'
       when coalesce(p.with_check, '') ~ '^\s*\(?\s*true\s*\)?\s*$' then 'POLİTİKA TAMAMEN AÇIK (with_check = true)'
 
@@ -456,18 +382,12 @@ select g.table_schema, g.table_name, g.grantee, g.privilege_type,
 
 
 -- ############################################################################
--- F. SERTLEŞTİRME DURUMU — MODA BAĞLI (003'ün beş koşulu)
+-- F. POST-006 SERTLEŞTİRME DURUMU (003'ten korunan beş koşul)
 -- ############################################################################
 --
--- Simetrik kapı:
---   PRE  → beş koşulun HİÇBİRİ uygulanmamış olmalı. Uygulanmış olan varsa
---          003 kısmen çalışmış demektir; bu beklenmeyen bir durumdur ve
---          göçü tekrar çalıştırmak öncesinde açıklanmalıdır.
---   POST → beş koşulun HEPSİ uygulanmış olmalı. Eksik kalan varsa göç
---          tutmamıştır.
+-- POST-006 kapısı: 003'ün beş sertleştirmesi de mevcut olmalıdır.
+-- 0 satır beklenir. PRE-006 bu dosyanın görevi değildir.
 --
--- 0 satır beklenir — HER İKİ MODDA (anlamı moda göre değişir).
-
 with kosul(id, aciklama, uygulandi) as (
   values
     ('SL-01a', 'materials SELECT davet koşulu',
@@ -489,14 +409,11 @@ with kosul(id, aciklama, uygulandi) as (
 )
 select k.id, k.aciklama, k.uygulandi as su_an_uygulanmis,
        case upper(:'mod')
-         when 'PRE'  then 'PRE modunda uygulanmamış olmalıydı — 003 KISMEN UYGULANMIŞ'
          when 'POST' then 'POST modunda uygulanmış olmalıydı — 003 TUTMAMIŞ'
          else 'GEÇERSİZ MOD'
        end as bulgu
   from kosul k
- where (upper(:'mod') = 'PRE'  and k.uygulandi)
-    or (upper(:'mod') = 'POST' and not k.uygulandi)
-    or upper(:'mod') not in ('PRE', 'POST')
+ where not k.uygulandi
  order by 1;
 
 
@@ -532,7 +449,7 @@ with hedef(ad, imza, tip, mod) as (
     ('ogretmen_basvurusunu_karara_bagla', 'public.ogretmen_basvurusunu_karara_bagla(uuid,text,text)', 'rpc', 'HER'),
     ('admin_davet_kodu_olustur', 'public.admin_davet_kodu_olustur(text,text,smallint,text,timestamptz,integer)', 'rpc', 'HER'),
     ('davet_dogrulandi_mi',      'public.davet_dogrulandi_mi()',           'politika', 'HER'),
-    ('davet_kullan',             'public.davet_kullan(text)',              'rpc',      'HER'),
+    ('davet_kullan',             'public.davet_kullan(text)',              'ic',      'HER'),
     ('denetim_yaz',              'public.denetim_yaz(text,text,text,jsonb)','ic',      'HER'),
     ('denetim_temizle',          'public.denetim_temizle(integer)',        'ic',       'HER'),
     ('dosya_materyale_bagli_mi', 'public.dosya_materyale_bagli_mi(text)',  'politika', 'POST')
@@ -862,6 +779,67 @@ select g.table_name, g.grantee, g.privilege_type,
                         'davet_dogrulamalari', 'davet_denemeleri', 'denetim_kaydi')
  order by 1, 2, 3;
 
+
+-- L. POST-006 membership, ACL ve teacher/sos401 korumaları (0 satır).
+with kontroller(ad, ok) as (
+  values
+    ('profiles direct INSERT policy yok', not exists (
+      select 1 from pg_policies where schemaname='public' and tablename='profiles' and cmd in ('INSERT','ALL'))),
+    ('profiles INSERT ayrıcalığı yok', not exists (
+      select 1 from (values ('anon'),('authenticated')) r(ad)
+      where has_table_privilege(r.ad,'public.profiles','INSERT')
+         or has_any_column_privilege(r.ad,'public.profiles','INSERT'))),
+    ('materials membership/write koruması', exists (
+      select 1 from pg_policies where schemaname='public' and tablename='materials'
+      and policyname='materials_gonderim' and with_check like '%uye_profili_var_mi%'
+      and with_check like '%teacher_status IS NULL%')),
+    ('materials SELECT membership koruması', exists (
+      select 1 from pg_policies where schemaname='public' and tablename='materials'
+      and policyname='materials_okuma' and qual like '%uye_profili_var_mi%')),
+    ('storage membership/write koruması', exists (
+      select 1 from pg_policies where schemaname='storage' and tablename='objects'
+      and policyname='materyal_yukleme' and with_check like '%uye_profili_var_mi%'
+      and with_check like '%teacher_status IS NULL%' and with_check like '%approved%')),
+    ('sos401 CHECK mevcut ve validated', exists (
+      select 1 from pg_constraint where conrelid='public.teacher_courses'::regclass
+      and conname='teacher_courses_sos401_yasak' and convalidated
+      and pg_get_constraintdef(oid) like '%sos401%')),
+    ('sos401 legacy assignment yok', not exists (
+      select 1 from public.teacher_courses where lower(btrim(course_id))='sos401')),
+    ('teacher helper sos401 defense', position('sos401' in pg_get_functiondef(to_regprocedure('public.teacher_has_course(text)'))) > 0),
+    ('teacher assignment trigger enabled', exists (
+      select 1 from pg_trigger where tgrelid='public.teacher_courses'::regclass
+      and tgname='teacher_courses_teacher_koru_trg' and tgenabled='O')),
+    ('teacher assignment approved guard', position('approved' in pg_get_functiondef(to_regprocedure('public.teacher_courses_teacher_koru()'))) > 0),
+    ('profile registration trigger enabled', exists (
+      select 1 from pg_trigger where tgrelid='public.profiles'::regclass
+      and tgname='profiles_kayit_alanlarini_koru_trg' and tgenabled='O')),
+    ('teacher publish trigger enabled', exists (
+      select 1 from pg_trigger where tgrelid='public.materials'::regclass
+      and tgname='materials_gonderim_durumunu_ata_trg' and tgenabled='O')),
+    ('registration NULL context kapalı', position('IS DISTINCT FROM' in upper(pg_get_functiondef(to_regprocedure('public.kayit_icin_davet_kodu_kullan(text)')))) > 0)
+)
+select ad as bulgu from kontroller where ok is distinct from true;
+
+-- Etkin ACL (PUBLIC/kalıtım dahil), fonksiyonun tam imzasıyla doğrulanır.
+with hedef(imza, anon_ok, auth_ok) as (
+  values
+    ('public.normalize_username(text)',false,false),
+    ('public.kayit_icin_davet_kodu_kullan(text)',false,false),
+    ('public.davet_kullan(text)',false,false),
+    ('public.kullanici_email_bul(text)',true,true),
+    ('public.uye_profili_var_mi()',false,true),
+    ('public.kullanici_kaydi_tamamla(text,text,text)',false,true),
+    ('public.ogretmen_basvurusunu_karara_bagla(uuid,text,text)',false,true),
+    ('public.admin_davet_kodu_olustur(text,text,smallint,text,timestamptz,integer)',false,true)
+)
+select h.imza as bulgu from hedef h left join pg_proc p on p.oid=to_regprocedure(h.imza)
+where p.oid is null or not p.prosecdef
+   or not coalesce(p.proconfig @> array['search_path=""'],false)
+   or has_function_privilege('anon',p.oid,'EXECUTE') is distinct from h.anon_ok
+   or has_function_privilege('authenticated',p.oid,'EXECUTE') is distinct from h.auth_ok
+   or exists (select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+              where a.grantee=0 and a.privilege_type='EXECUTE');
 
 -- ============================================================================
 -- Bu dosya hiçbir sır içermez, hiçbir kullanıcı verisi dökmez ve hiçbir şey

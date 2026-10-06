@@ -29,7 +29,7 @@ function main() {
 
   mustContain('revoke all on function public.kayit_icin_davet_kodu_kullan(text) from public, anon, authenticated;', 'Kayıt davet helper fonksiyonu istemci rollerine kapalı olmalı');
   mustNotContain('grant execute on function public.kayit_icin_davet_kodu_kullan(text) to authenticated', 'Kayıt davet helper fonksiyonuna authenticated grant edilmemeli');
-  mustContain("if current_setting('sosyolab.registration_context', true) <> 'on' then", 'Kayıt davet helper fonksiyonu yalnız registration context ile çalışmalı');
+  mustContain("if current_setting('sosyolab.registration_context', true) is distinct from 'on' then", 'Kayıt davet helper fonksiyonu NULL context dahil kayıt dışını reddetmeli');
 
   mustContain('revoke all on function public.kullanici_kaydi_tamamla(text, text, text) from public, anon;', 'Kayıt tamamlama anon erişimini kapatmalı');
   mustContain('grant execute on function public.kullanici_kaydi_tamamla(text, text, text) to authenticated;', 'Kayıt tamamlama yalnız authenticated olmalı');
