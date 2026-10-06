@@ -557,23 +557,41 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
   Bu adımda policy/fonksiyonlar güncellendiği için ardından envanter tekrar
   çalıştırılır.
 
-7. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
+7. **PRE-006 legacy backfill kapısı (zorunlu).**
+   006'dan önce açılmış hesaplarda `profiles.username` / `profiles.auth_login_email`
+   boş olabilir. 006 frontend'i yayımlanmadan önce aşağıdaki sorgu çalıştırılır:
+   ```sql
+   select p.id, p.role, p.display_name, u.email as auth_email, p.username, p.auth_login_email
+     from public.profiles p
+     left join auth.users u on u.id = p.id
+    where p.username is null or p.auth_login_email is null
+    order by p.created_at;
+   ```
+   Satır dönerse, deterministik username önerisi üretilir ve kontrollü backfill
+   uygulanır; backfill tamamlanmadan 006 frontend yayını yapılmaz.
+
+8. **Self-registration migration — `006_self_registration_invites.sql`.**
+   Bu adım, profile doğrudan INSERT yolunu kapatır, orphan Auth erişimini
+   profile membership ile sınırlar, sos401 canonical blokajını ve kayıt
+   güvenlik sınırlarını uygular.
+
+9. **VERİTABANI DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm B (canlı RLS),
    B.2 (davetsiz oturum) ve C (Storage) çalıştırılır. Bunlar konsol/API
    testleridir; **eski `app.js` ile çalışır.** Hepsi geçmeden ilerlenmez.
-8. **Depo değişiklikleri commit + push edilir** (`main`).
-9. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
+10. **Depo değişiklikleri commit + push edilir** (`main`).
+11. **GitHub Pages yeni `app.js`'i otomatik dağıtır.** Actions sekmesinden
    "GitHub Pages'e yayınla" işinin yeşil olduğu doğrulanır. İş, gizli anahtar
    taraması / inline betik denetimi / bağımlılık hash'i / yayın klasörü
    doğrulaması kapılarını da çalıştırır.
-10. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
-11. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
+12. **Smoke:** `bash scripts/smoke.sh` → **FAIL 0 olmalı.**
+13. **Üretim varlıkları yeni HEAD ile eşleşiyor mu** doğrulanır (smoke §3 bunu
    bayt bayt yapar; bayat CDN önbelleği burada yakalanır).
-12. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
+14. **ARAYÜZ DOĞRULAMASI.** `LIVE-VALIDATION.md` bölüm A (yönetici girişi) ve
   B.3 (UI-01…UI-03, damgasız oturum yönlendirmesi) çalıştırılır. **Bunlar
-  yeni `app.js` gerektirir, bu yüzden 9. adımdan sonradır.**
-13. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
+  yeni `app.js` gerektirir, bu yüzden 11. adımdan sonradır.**
+15. **Zorunlu temizlik.** `LIVE-VALIDATION.md` bölüm D — test materyalleri,
     test kullanıcıları, geçici davet kodu ve artık dosyalar silinir.
-14. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
+16. **Kenar katmanı ve kalanlar:** Cloudflare proxy + başlıklar (bölüm 1),
     ardından doğrulama:
     ```bash
     curl -sSI https://arsiv.sosyolab.tr | grep -iE 'strict-transport|content-security|x-frame|x-content-type|referrer|permissions'
@@ -585,7 +603,7 @@ Bu sürümün sırası. Adımlar atlanmaz ve yerleri değişmez.
 ### Geri dönüş
 
 3. adım sorun çıkarırsa: `003` dosyasının sonundaki geri alma bloğu
-çalıştırılır (o da tek transaction'dır). 7. adım sorun çıkarırsa: önceki
+çalıştırılır (o da tek transaction'dır). 9. adım sorun çıkarırsa: önceki
 commit'e dönülüp push edilir; Pages eski `app.js`'i yeniden yayınlar.
 Veritabanı ve arayüzü birbirinden bağımsız geri alabilmek bu sıranın
 kazancıdır.
@@ -721,6 +739,21 @@ SQL Editor'de **sırayla**:
   *`teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için
   ders-sahipliği kontrollü doğrudan yayın akışını ekler.*
 
+7. **PRE-006 legacy backfill kontrolü** (frontendden önce zorunlu):
+   ```sql
+   select p.id, p.role, p.display_name, u.email as auth_email, p.username, p.auth_login_email
+     from public.profiles p
+     left join auth.users u on u.id = p.id
+    where p.username is null or p.auth_login_email is null
+    order by p.created_at;
+   ```
+   Satır dönerse backfill tamamlanmadan devam etme.
+
+8. `supabase/migrations/006_self_registration_invites.sql` — tamamını çalıştır.
+   *Self-registration güvenlik sınırlarını sıkılaştırır: profile direct insert
+   kapanır, orphan Auth erişimi profile membership ile sınırlandırılır, sos401
+   canonical blokajı ve teacher approval kontrolleri uygulanır.*
+
 Doğrula:
 
 ```sql
@@ -738,7 +771,7 @@ select polname, cmd from pg_policies
 
 ```sql
 -- 1) Tahmin edilemez bir kod üret ve ÇIKTIYI GÜVENLİ YERE AL:
-select upper(encode(extensions.gen_random_bytes(10), 'hex')) as davet_kodu;
+select upper(encode(extensions.gen_random_bytes(16), 'hex')) as davet_kodu; -- 32 hex = 128-bit
 
 -- 2) Üretilen değeri <KOD> yerine koyup çalıştır:
 insert into public.davet_kodlari (kod_ozeti, etiket, gecerlilik_sonu, azami_kullanim)
@@ -755,6 +788,9 @@ Kodu öğrencilere ilet. **Bu kodu hiçbir dosyaya, commit'e ya da bu depoya
 yazma.** SQL Editor geçmişini temizle.
 
 ### B.3 Sunucu modunu aç
+
+Bu adım **yalnızca 006 + legacy backfill doğrulaması bittiğinde** yapılır.
+Frontend 006, SQL 006 uygulanmadan yayımlanmamalıdır.
 
 `config.js` dosyasında:
 

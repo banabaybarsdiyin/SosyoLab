@@ -245,18 +245,6 @@
      yapılmalıdır. */
   const AYAR = window.SOSYOLAB_CONFIG || {};
   const DAVET_SUNUCUDA = AYAR.INVITE_MODE === "server";
-  const YEREL_DAVET_KODU =
-    typeof AYAR.LOCAL_INVITE_CODE === "string" ? AYAR.LOCAL_INVITE_CODE.trim().toUpperCase() : "";
-
-  /* Kurgusal demo kayıtları. Bu liste kaynak kodda açıkta durduğu için
-     buraya asla gerçek öğrenci numarası veya adı yazılmaz; gerçek kayıt
-     listesi ancak sunucu tarafında tutulabilir. */
-  const KAYITLI = {
-    "1000000001": { ad: "Demo Öğrenci A", sinif: 4 },
-    "1000000002": { ad: "Demo Öğrenci B", sinif: 4 },
-    "1000000003": { ad: "Demo Öğrenci C", sinif: 3 },
-    "1000000004": { ad: "Demo Öğrenci D", sinif: 2 }
-  };
 
   /* Yönetici giriş takma adı. Bu YALNIZCA bir kullanıcı adıdır; yetki vermez.
      Zincir: takma ad → sabit e-posta eşlemesi → Supabase parola doğrulaması →
@@ -265,6 +253,7 @@
      arayüzde hiçbir yerde gösterilmez; yalnızca Supabase Auth'a gider. */
   const ADMIN_TAKMA_AD = "sosyolog35";
   const ADMIN_EPOSTA = "sosyolog.35@sosyolab.local";
+  const AUTH_INTERNAL_DOMAIN = "auth.sosyolab.local";
 
   /* Uygulamada tanınan tek rol kümesi. */
   const ROLLER = ["ogrenci", "teacher", "admin"];
@@ -306,7 +295,13 @@
     ogretmenDersleri: [],
     onayHata: null,
     reddedilen: null,
+    ogretmenBasvurulari: [],
+    basvuruHata: null,
+    basvuruIslemde: null,
     hata: null,
+    authSekme: "giris",
+    kayitGonderiliyor: false,
+    kayitMesaj: null,
     /* sayfalama */
     sayfa: 0,
     dahaVar: false,
@@ -467,13 +462,22 @@
     return ROLLER.indexOf(v) > -1 ? v : "ogrenci";
   }
 
+  function kullaniciAdiNormalize(v) {
+    return String(v || "").trim().toLowerCase().replace(/\s+/g, "");
+  }
+
+  function kullaniciAdiGecerli(v) {
+    return /^[a-z0-9._]{4,24}$/.test(kullaniciAdiNormalize(v));
+  }
+
   function oturumNormalize(o) {
     if (!o || typeof o !== "object") return null;
     const rol = rolNormalize(o.rol);
-    const sinif = Number(o.sinif);
+    const sinif = Number(o.sinif || o.classYear);
+    const no = kullaniciAdiNormalize(o.no || o.username);
     if (rol === "admin") {
       return {
-        no: typeof o.no === "string" && /^[A-Za-z0-9._-]{1,32}$/.test(o.no) ? o.no : ADMIN_TAKMA_AD,
+        no: kullaniciAdiGecerli(no) ? no : ADMIN_TAKMA_AD,
         ad: metin(o.ad, "Yönetici"),
         rol: "admin",
         sinif: SINIFLAR.indexOf(sinif) > -1 ? sinif : null
@@ -481,16 +485,16 @@
     }
     if (rol === "teacher") {
       return {
-        no: metin(o.no, "Öğretim Elemanı"),
+        no: kullaniciAdiGecerli(no) ? no : "teacher",
         ad: metin(o.ad, "Öğretim Elemanı"),
         rol: "teacher",
         sinif: null
       };
     }
-    if (typeof o.no !== "string" || !/^\d{10}$/.test(o.no)) return null;
+    if (!kullaniciAdiGecerli(no)) return null;
     return {
-      no: o.no,
-      ad: metin(o.ad, "No. " + o.no.slice(-4)),
+      no: no,
+      ad: metin(o.ad, no),
       rol: "ogrenci",
       sinif: SINIFLAR.indexOf(sinif) > -1 ? sinif : null
     };
@@ -537,22 +541,15 @@
         if (oturum) {
           BULUT.uid = oturum.user.id;
           const pr = await BULUT.istemci.from("profiles")
-            .select("id, role, display_name, student_number").eq("id", BULUT.uid).maybeSingle();
+            .select("id, role, display_name, username, class_year, teacher_status, auth_login_email").eq("id", BULUT.uid).maybeSingle();
           if (!pr.error && pr.data) BULUT.profil = pr.data;
           state.oturum = bulutOturumuKur(yerel);
 
           /* Damgası olmayan oturum panele alınmaz. Göç 003'ten sonra arşiv
              okuması RLS'te davet damgasına bağlı; damgasız bir oturum panele
              düşerse kullanıcı BOŞ bir arşiv görür ve nedenini anlamaz. Bu
-             durum gerçekten oluşabiliyor: bulutOturumAc() profili anonim
-             girişin hemen ardından, davet doğrulanmadan ÖNCE oluşturuyor —
-             kullanıcı kodu girmeden sekmeyi kapatırsa geride tam da böyle bir
-             oturum kalıyor.
-
-             Supabase oturumu BİLİNÇLİ olarak kapatılmıyor: kullanıcı kodu
-             girdiğinde ogrenciGirisi() mevcut anonim kimliği yeniden kullanıp
-             damgayı ona basar. Oturumu kapatmak her denemede yeni bir anonim
-             auth.users satırı bırakırdı.
+             Bu durum eski akıştan kalmış bir güvenlik emniyetidir: damgası
+             olmayan kullanıcı arşiv okuması yapamaz.
 
              Bu bir YETKİ KONTROLÜ DEĞİLDİR — erişimi kesen şey RLS'tir.
              Buradaki tek iş kullanıcıyı davet ekranına geri almak. */
@@ -600,9 +597,11 @@
       return oturumNormalize({ no: ADMIN_TAKMA_AD, ad: p.display_name || "Yönetici", rol: "admin", sinif: null });
     }
     if (p.role === "teacher") {
-      return oturumNormalize({ no: "Öğretim Elemanı", ad: p.display_name || "Öğretim Elemanı", rol: "teacher", sinif: null });
+      return oturumNormalize({ no: p.username || "teacher", ad: p.display_name || "Öğretim Elemanı", rol: "teacher", sinif: null });
     }
-    const aday = yerel && /^\d{10}$/.test(yerel.no) ? yerel : { no: p.student_number, ad: p.display_name };
+    const aday = yerel && kullaniciAdiGecerli(yerel.no)
+      ? yerel
+      : { no: p.username, ad: p.display_name, sinif: p.class_year };
     return oturumNormalize({ no: aday.no, ad: aday.ad, sinif: aday.sinif, rol: "ogrenci" });
   }
 
@@ -620,6 +619,7 @@
     state.ogretmenDersleri = ogretmenMi() ? await ogretmenDerslerimiGetir() : [];
     state.gonderiler = await gonderilerimiGetir();
     state.bekleyen = yetkili() ? await bekleyenleriGetir() : [];
+    state.ogretmenBasvurulari = yetkili() ? await ogretmenBasvurulariniGetir() : [];
   }
 
   /* Bir sonraki materyal sayfasını ekler. Tüm arşivi tek seferde tarayıcıya
@@ -757,58 +757,6 @@
 
   /* ---------- oturum ---------- */
 
-  async function bulutOturumAc(rolIstegi, kimlik) {
-    if (!BULUT.etkin) return { ok: false, hata: "Bulut yapılandırılmamış." };
-    const c = BULUT.istemci;
-    try {
-      if (rolIstegi === "admin") {
-        const eposta = kimlik.kullanici.indexOf("@") > -1
-          ? kimlik.kullanici
-          : kimlik.kullanici.toLowerCase() + "@sosyolab.local";
-        const r = await c.auth.signInWithPassword({ email: eposta, password: kimlik.parola });
-        if (r.error) return { ok: false, hata: "Kullanıcı adı veya parola hatalı." };
-        BULUT.uid = r.data.user.id;
-      } else {
-        const mevcut = await c.auth.getSession();
-        const s = mevcut.data && mevcut.data.session;
-        if (s && s.user && s.user.is_anonymous) {
-          BULUT.uid = s.user.id;
-        } else {
-          /* Öğrenci girişi tarayıcıda kalmış parola oturumunu (ör. yönetici)
-             asla devralmaz: önce kapatılır, sonra yeni anonim oturum açılır. */
-          if (s) await bulutCikis();
-          const r = await c.auth.signInAnonymously();
-          if (r.error) return { ok: false, hata: "Oturum açılamadı." };
-          BULUT.uid = r.data.user.id;
-        }
-      }
-      const p = await c.from("profiles").select("id, role, display_name, student_number")
-        .eq("id", BULUT.uid).maybeSingle();
-      if (!p.error && p.data) {
-        BULUT.profil = p.data;
-      } else {
-        const yeni = {
-          id: BULUT.uid,
-          display_name: kimlik.ad || null,
-          student_number: kimlik.no && /^\d{10}$/.test(kimlik.no) ? kimlik.no : null
-        };
-        const ins = await c.from("profiles").insert(yeni).select().maybeSingle();
-        BULUT.profil = (!ins.error && ins.data) ? ins.data : { id: BULUT.uid, role: "user" };
-      }
-      /* Rol sunucudan gelir; tarayıcıdaki seçim rolü belirlemez. */
-      return {
-        ok: true,
-        rol: BULUT.profil.role === "admin"
-          ? "admin"
-          : BULUT.profil.role === "teacher"
-            ? "teacher"
-            : "ogrenci"
-      };
-    } catch (e) {
-      return { ok: false, hata: "Bağlantı kurulamadı." };
-    }
-  }
-
   async function bulutCikis() {
     if (!BULUT.etkin) return;
     /* Sunucuya ulaşılamazsa signOut yerel oturumu silmez; yerel kapsamla
@@ -884,11 +832,32 @@
   async function bekleyenleriGetir() {
     if (!BULUT.etkin) return [];
     const r = await BULUT.istemci.from("materials")
-      .select("id, course_id, title, description, material_type, file_path, file_name, created_at, status, profiles:uploader_id(display_name, student_number)")
+      .select("id, course_id, title, description, material_type, file_path, file_name, created_at, status, profiles:uploader_id(display_name, username)")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(200);
     return r.error ? [] : (r.data || []);
+  }
+
+  async function ogretmenBasvurulariniGetir() {
+    if (!BULUT.etkin) return [];
+    const r = await BULUT.istemci.from("profiles")
+      .select("id, display_name, username, created_at, teacher_status")
+      .not("teacher_status", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(300);
+    return r.error ? [] : (r.data || []);
+  }
+
+  async function ogretmenBasvurusuKararaBagla(id, karar) {
+    if (!BULUT.etkin) return { ok: false, hata: "Bulut bağlantısı yok." };
+    const r = await BULUT.istemci.rpc("ogretmen_basvurusunu_karara_bagla", {
+      p_profile_id: id,
+      p_karar: karar,
+      p_ret_gerekcesi: null
+    });
+    if (r.error) return { ok: false, hata: "Başvuru işlemi reddedildi. Yetkin olmayabilir." };
+    return { ok: true };
   }
 
   async function gonderiOlustur(veri, dosya) {
@@ -972,6 +941,7 @@
   /* ---------- giriş ---------- */
 
   function girisGorunumu() {
+    const girisAktif = state.authSekme !== "kayit";
     return `
       <div class="auth">
         <section class="auth-left" aria-hidden="true">
@@ -997,35 +967,58 @@
 
         <main class="auth-right" id="icerik">
           <div class="auth-card">
-            <h2>Arşive giriş</h2>
-            <p class="lede">Öğrenci numaran veya kullanıcı adınla giriş yap.</p>
+            <div class="tabs" role="tablist" aria-label="Kimlik doğrulama sekmeleri">
+              <button class="tab" role="tab" data-action="auth-sekme" data-sekme="giris" aria-selected="${girisAktif}" tabindex="${girisAktif ? "0" : "-1"}">Giriş Yap</button>
+              <button class="tab" role="tab" data-action="auth-sekme" data-sekme="kayit" aria-selected="${!girisAktif}" tabindex="${!girisAktif ? "0" : "-1"}">Kayıt Ol</button>
+            </div>
+            <h2>${girisAktif ? "Arşive giriş" : "Yeni hesap oluştur"}</h2>
+            <p class="lede">${girisAktif
+              ? "Kullanıcı adın ve parolanla giriş yap."
+              : "Davet kodunu girerek hesabını oluştur."}</p>
             ${state.hata ? `<p class="form-error" role="alert">${esc(state.hata)}</p>` : ""}
+            ${state.kayitMesaj ? `<p class="form-hint">${esc(state.kayitMesaj)}</p>` : ""}
+            ${girisAktif ? `
             <div class="field">
-              <label for="kimlik">Öğrenci numarası veya kullanıcı adı</label>
-              <input class="input" id="kimlik" type="text" maxlength="64" autocomplete="username"
+              <label for="kimlik">Kullanıcı adı</label>
+              <input class="input" id="kimlik" type="text" maxlength="24" autocomplete="username"
                      autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
             </div>
             <div class="field">
-              <label for="sifre">Davet kodu veya parola</label>
+              <label for="sifre">Parola</label>
               <input class="input" id="sifre" type="password" maxlength="128" autocomplete="current-password"
                      autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go">
             </div>
             <button class="btn-primary" type="button" data-action="giris"${state.girisDeneniyor ? " disabled" : ""}>${
-              state.girisDeneniyor ? '<span class="spinner"></span> Kontrol ediliyor…' : "Arşive Gir"}</button>
-            <hr class="auth-sep" aria-hidden="true">
-            <h3>Öğretim Elemanı Girişi</h3>
+              state.girisDeneniyor ? '<span class="spinner"></span> Kontrol ediliyor…' : "Giriş Yap"}</button>
+            ` : `
             <div class="field">
-              <label for="teacher-eposta">E-posta</label>
-              <input class="input" id="teacher-eposta" type="email" maxlength="190" autocomplete="username"
+              <label for="kayit-kullanici">Kullanıcı adı</label>
+              <input class="input" id="kayit-kullanici" type="text" maxlength="24" autocomplete="username"
                      autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
             </div>
             <div class="field">
-              <label for="teacher-sifre">Parola</label>
-              <input class="input" id="teacher-sifre" type="password" maxlength="128" autocomplete="current-password"
+              <label for="kayit-sifre">Parola</label>
+              <input class="input" id="kayit-sifre" type="password" maxlength="128" autocomplete="new-password"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="field">
+              <label for="kayit-sifre-tekrar">Parola (tekrar)</label>
+              <input class="input" id="kayit-sifre-tekrar" type="password" maxlength="128" autocomplete="new-password"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="field">
+              <label for="kayit-davet">Davet kodu</label>
+              <input class="input" id="kayit-davet" type="text" maxlength="64" autocomplete="off"
+                     autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="field">
+              <label for="kayit-adsoyad">Ad Soyad (teacher kodu için zorunlu)</label>
+              <input class="input" id="kayit-adsoyad" type="text" maxlength="80" autocomplete="name"
                      autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go">
             </div>
-            <button class="btn-primary" type="button" data-action="teacher-giris"${state.girisDeneniyor ? " disabled" : ""}>${
-              state.girisDeneniyor ? '<span class="spinner"></span> Kontrol ediliyor…' : "Öğretim Elemanı Olarak Gir"}</button>
+            <button class="btn-primary" type="button" data-action="kayit-ol"${state.kayitGonderiliyor ? " disabled" : ""}>${
+              state.kayitGonderiliyor ? '<span class="spinner"></span> Hesap oluşturuluyor…' : "Kayıt Ol"}</button>
+            `}
             <p class="auth-foot">Bölüm öğrencileri, öğretim elemanları ve yöneticiler için.</p>
             <p class="auth-demo">Kimlik doğrulama ve materyal işlemleri sunucu tarafındaki kurallarla korunur.</p>
           </div>
@@ -1038,145 +1031,162 @@
     return t === ADMIN_TAKMA_AD || t === "sosyolog.35";
   };
 
+  function rastgeleKayitEmail() {
+    const ham = (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID().replace(/-/g, "")
+      : (Date.now().toString(16) + Math.random().toString(16).slice(2));
+    return "u." + ham.slice(0, 32) + "@" + AUTH_INTERNAL_DOMAIN;
+  }
+
   async function girisDene() {
     if (state.girisDeneniyor) return;
-    const kimlik = (document.getElementById("kimlik").value || "").trim();
+    const kimlik = kullaniciAdiNormalize(document.getElementById("kimlik").value || "");
     const sifre = document.getElementById("sifre").value || "";
 
-    if (!kimlik) return hataGoster("Öğrenci numaranı ya da kullanıcı adını gir.", "kimlik");
-    if (!sifre) return hataGoster("Davet kodunu ya da parolanı gir.", "sifre");
+    if (!kimlik) return hataGoster("Kullanıcı adını gir.", "kimlik");
+    if (!sifre) return hataGoster("Parolanı gir.", "sifre");
+    if (!kullaniciAdiGecerli(kimlik) && !adminTakmaAdiMi(kimlik)) {
+      return hataGoster("Kullanıcı adı 4-24 karakter olmalı ve yalnızca harf/rakam/._ içermeli.", "kimlik");
+    }
 
     /* Tek uçuşta tek deneme: çift tıklama ikinci bir ağ isteği açmasın. */
     state.girisDeneniyor = true;
     state.hata = null;
+    state.kayitMesaj = null;
     ciz();
     try {
-      return adminTakmaAdiMi(kimlik) ? await yoneticiGirisi(sifre) : await ogrenciGirisi(kimlik, sifre);
+      if (!BULUT.etkin) return hataGoster("Giriş şu an kapalı: sunucu bağlantısı yok.", "kimlik");
+      const email = adminTakmaAdiMi(kimlik) ? ADMIN_EPOSTA : await kullaniciEmailiniBul(kimlik);
+      const r = await BULUT.istemci.auth.signInWithPassword({ email: email, password: sifre });
+      if (r.error || !r.data || !r.data.user) return hataGoster("Kullanıcı adı veya parola hatalı.", "sifre");
+
+      BULUT.uid = r.data.user.id;
+      const pr = await BULUT.istemci.from("profiles")
+        .select("id, role, display_name, username, class_year, teacher_status, auth_login_email")
+        .eq("id", BULUT.uid)
+        .maybeSingle();
+
+      if (pr.error || !pr.data) {
+        await bulutCikis();
+        return hataGoster("Profil doğrulanamadı. Yöneticiyle iletişime geç.", "kimlik");
+      }
+
+      BULUT.profil = pr.data;
+      const rol = BULUT.profil.role === "admin" ? "admin"
+        : BULUT.profil.role === "teacher" ? "teacher"
+          : "ogrenci";
+
+      await oturumAc({
+        no: BULUT.profil.username || kimlik,
+        ad: BULUT.profil.display_name || kimlik,
+        rol: rol,
+        sinif: BULUT.profil.class_year || null
+      });
+
+      await bulutYenile();
+      ciz();
+      if (BULUT.profil.teacher_status === "pending") {
+        bildir("Öğretim elemanı başvurun alındı. Yönetici onayı bekleniyor.");
+      }
+      return;
     } catch (e) {
       return hataGoster("Giriş tamamlanamadı. Bağlantını kontrol edip tekrar dene.", "kimlik");
     } finally {
       state.girisDeneniyor = false;
+      ciz();
     }
   }
 
-  async function ogretimElemaniGirisiDene() {
-    if (state.girisDeneniyor) return;
-    const eposta = (document.getElementById("teacher-eposta").value || "").trim().toLowerCase();
-    const parola = document.getElementById("teacher-sifre").value || "";
-
-    if (!eposta) return hataGoster("Öğretim elemanı e-posta adresini gir.", "teacher-eposta");
-    if (!parola) return hataGoster("Parolanı gir.", "teacher-sifre");
-
-    state.girisDeneniyor = true;
-    state.hata = null;
-    ciz();
-    try {
-      return await ogretimElemaniGirisi(eposta, parola);
-    } catch (e) {
-      return hataGoster("Giriş tamamlanamadı. Bağlantını kontrol edip tekrar dene.", "teacher-eposta");
-    } finally {
-      state.girisDeneniyor = false;
-    }
-  }
-
-  async function ogretimElemaniGirisi(eposta, parola) {
-    if (!BULUT.etkin) {
-      return hataGoster("Öğretim elemanı girişi yalnızca sunucu bağlıyken yapılabilir.", "teacher-eposta");
-    }
-
-    const r = await BULUT.istemci.auth.signInWithPassword({ email: eposta, password: parola });
-    if (r.error || !r.data || !r.data.user) {
-      return hataGoster("E-posta veya parola hatalı.", "teacher-sifre");
-    }
-
-    BULUT.uid = r.data.user.id;
-    const pr = await BULUT.istemci.from("profiles")
-      .select("id, role, display_name, student_number")
-      .eq("id", BULUT.uid)
-      .maybeSingle();
-
-    if (pr.error || !pr.data) {
-      await bulutCikis();
-      return hataGoster("Profil doğrulanamadı. Bölüm yöneticisiyle iletişime geç.", "teacher-eposta");
-    }
-
-    BULUT.profil = pr.data;
-    if (BULUT.profil.role !== "teacher") {
-      await bulutCikis();
-      return hataGoster("Bu hesabın öğretim elemanı yetkisi yok.", "teacher-eposta");
-    }
-
-    await oturumAc({
-      no: "Öğretim Elemanı",
-      ad: BULUT.profil.display_name || "Öğretim Elemanı",
-      rol: "teacher",
-      sinif: null
+  async function kullaniciEmailiniBul(kullaniciAdi) {
+    const r = await BULUT.istemci.rpc("kullanici_email_bul", {
+      p_username: kullaniciAdiNormalize(kullaniciAdi)
     });
-    await bulutYenile();
-    return ciz();
+    if (r.error || typeof r.data !== "string" || !r.data) {
+      return md5FallbackEmail(kullaniciAdi);
+    }
+    return r.data;
   }
 
-  async function yoneticiGirisi(parola) {
-    if (BULUT.etkin) {
-      /* Parola tarayıcıda hiçbir şeyle karşılaştırılmaz: doğrulama Supabase
-         Auth'ta yapılır, yetki sunucudaki profil satırından gelir. */
-      const r = await bulutOturumAc("admin", { kullanici: ADMIN_EPOSTA, parola: parola });
-      if (!r.ok) return hataGoster("Kullanıcı adı veya parola hatalı.", "sifre");
-      if (r.rol !== "admin") {
-        await bulutCikis();
-        return hataGoster("Bu hesabın yönetim yetkisi yok.", "kimlik");
+  function md5FallbackEmail(v) {
+    const t = kullaniciAdiNormalize(v) || "missing";
+    let h = 0;
+    for (let i = 0; i < t.length; i++) h = ((h << 5) - h + t.charCodeAt(i)) | 0;
+    const k = (Math.abs(h).toString(16).padStart(8, "0") + "000000000000000000000000").slice(0, 32);
+    return "u." + k + "@" + AUTH_INTERNAL_DOMAIN;
+  }
+
+  async function kayitDene() {
+    if (state.kayitGonderiliyor) return;
+    if (!BULUT.etkin) return hataGoster("Kayıt şu an kapalı: sunucu bağlantısı yok.", "kayit-kullanici");
+
+    const kullaniciAdi = kullaniciAdiNormalize(document.getElementById("kayit-kullanici").value || "");
+    const sifre = document.getElementById("kayit-sifre").value || "";
+    const sifreTekrar = document.getElementById("kayit-sifre-tekrar").value || "";
+    const davetKodu = (document.getElementById("kayit-davet").value || "").trim();
+    const adSoyad = (document.getElementById("kayit-adsoyad").value || "").trim();
+
+    if (!kullaniciAdiGecerli(kullaniciAdi)) {
+      return hataGoster("Kullanıcı adı 4-24 karakter olmalı ve yalnızca harf/rakam/._ içermeli.", "kayit-kullanici");
+    }
+    if (adminTakmaAdiMi(kullaniciAdi)) {
+      return hataGoster("Bu kullanıcı adı kullanılamaz.", "kayit-kullanici");
+    }
+    if (sifre.length < 8) return hataGoster("Parola en az 8 karakter olmalı.", "kayit-sifre");
+    if (sifre !== sifreTekrar) return hataGoster("Parolalar eşleşmiyor.", "kayit-sifre-tekrar");
+    if (!davetKodu) return hataGoster("Davet kodunu gir.", "kayit-davet");
+
+    state.kayitGonderiliyor = true;
+    state.hata = null;
+    state.kayitMesaj = null;
+    ciz();
+
+    try {
+      const email = rastgeleKayitEmail();
+      const su = await BULUT.istemci.auth.signUp({ email: email, password: sifre });
+      if (su.error || !su.data || !su.data.user) {
+        return hataGoster("Hesap oluşturulamadı. Kullanıcı adı veya davet kodunu kontrol et.", "kayit-kullanici");
       }
-      await oturumAc({
-        no: ADMIN_TAKMA_AD,
-        ad: (BULUT.profil && BULUT.profil.display_name) || "Yönetici",
-        rol: "admin",
-        sinif: null
+
+      if (!su.data.session) {
+        try { await BULUT.istemci.auth.signOut({ scope: "local" }); } catch (e) { /* yok sayılır */ }
+        return hataGoster("Kayıt için e-posta onayı devre dışı olmalı. Yöneticiye bildir.", "kayit-kullanici");
+      }
+
+      BULUT.uid = su.data.user.id;
+      const rr = await BULUT.istemci.rpc("kullanici_kaydi_tamamla", {
+        p_username: kullaniciAdi,
+        p_sifreli_davet_kodu: davetKodu,
+        p_display_name: adSoyad || null
       });
-      await bulutYenile();
-      return ciz();
-    }
 
-    /* Sunucu bağlı değilken yönetici girişi diye bir şey yoktur: parolayı
-       doğrulayacak güvenilir bir taraf yok, tarayıcıdaki karşılaştırma ise
-       yetki üretmez. Bu yüzden akış burada kesilir. */
-    return hataGoster("Yönetici girişi yalnızca sunucu bağlıyken yapılabilir.", "kimlik");
-  }
-
-  async function ogrenciGirisi(kimlik, kod) {
-    const no = kimlik.replace(/\D/g, "");
-    if (no.length !== 10 || no !== kimlik) {
-      return hataGoster("Öğrenci numarası 10 haneli olmalı.", "kimlik");
-    }
-
-    /* Demo listesi yalnızca sunucusuz gösterim içindir. Sunucu bağlıyken
-       kaynak koddaki kurgusal adlar kullanılmaz; görünen ad numaradan türetilir
-       ve gerçek ad yalnızca profiles satırından gelebilir. */
-    const kayit = BULUT.etkin ? null : KAYITLI[no];
-    const ad = kayit ? kayit.ad : "No. " + no.slice(-4);
-
-    if (!BULUT.etkin) {
-      if (!YEREL_DAVET_KODU || kod.trim().toUpperCase() !== YEREL_DAVET_KODU) {
-        return hataGoster("Davet kodu doğrulanamadı.", "sifre");
+      if (rr.error || !rr.data || rr.data.ok !== true) {
+        await bulutCikis();
+        oturumuTemizle();
+        return hataGoster("Kayıt tamamlanamadı. Davet kodu geçersiz olabilir.", "kayit-davet");
       }
-      return oturumAc({ no: no, ad: ad, rol: "ogrenci", sinif: kayit ? kayit.sinif : null });
-    }
 
-    /* Öğrenci girişi hiçbir zaman admin rolü talep edemez: rol sunucudaki
-       profil satırından okunur ve varsayılanı sıradan kullanıcıdır. */
-    const r = await bulutOturumAc("ogrenci", { no: no, ad: ad });
-    if (!r.ok) return hataGoster(r.hata, "kimlik");
-
-    const davet = await davetDogrula(kod);
-    if (!davet.ok) {
-      /* Davet geçersizse açılan anonim oturum açık bırakılmaz. */
       await bulutCikis();
       oturumuTemizle();
-      return hataGoster(davet.hata, "sifre");
+      state.authSekme = "giris";
+      state.kayitMesaj = rr.data.audience_type === "teacher"
+        ? "Öğretim elemanı başvurun alındı. Yönetici onayından sonra öğretim elemanı özellikleri açılacaktır."
+        : "Hesabın oluşturuldu. Giriş yapabilirsin.";
+      ciz();
+      const el = document.getElementById("kimlik");
+      if (el) el.focus();
+      return;
+    } catch (e) {
+      return hataGoster("Kayıt tamamlanamadı. Bağlantını kontrol edip tekrar dene.", "kayit-kullanici");
+    } finally {
+      state.kayitGonderiliyor = false;
+      ciz();
     }
+  }
 
-    await oturumAc({ no: no, ad: ad, rol: r.rol, sinif: null });
-    await bulutYenile();
-    return ciz();
+  function authSekmeDegistir(sekme) {
+    state.authSekme = sekme === "kayit" ? "kayit" : "giris";
+    state.hata = null;
+    ciz();
   }
 
   /* Bu oturumun davet damgası var mı — public.davet_dogrulandi_mi() sorar.
@@ -1199,33 +1209,6 @@
       return r.data !== false;
     } catch (e) {
       return true;
-    }
-  }
-
-  /* Davet kodunu doğrular. Sunucu modunda kod yalnızca Supabase'e gider ve
-     karşılaştırma orada yapılır; tarayıcı geçerli kodu hiçbir zaman bilmez. */
-  async function davetDogrula(kod) {
-    const temiz = String(kod || "").trim();
-    if (!temiz) return { ok: false, hata: "Davet kodunu gir." };
-
-    if (!DAVET_SUNUCUDA) {
-      /* Geçici mod — güvenlik sınırı değildir, bkz. yukarıdaki not. */
-      if (!YEREL_DAVET_KODU) {
-        return { ok: false, hata: "Davet kodu doğrulaması yapılandırılmamış. Bölüm temsilcisine bildir." };
-      }
-      return temiz.toUpperCase() === YEREL_DAVET_KODU
-        ? { ok: true }
-        : { ok: false, hata: "Davet kodu doğrulanamadı." };
-    }
-
-    try {
-      const r = await BULUT.istemci.rpc("davet_kullan", { p_kod: temiz });
-      if (r.error) return { ok: false, hata: "Davet kodu doğrulanamadı." };
-      return r.data === true
-        ? { ok: true }
-        : { ok: false, hata: "Davet kodu geçersiz ya da süresi dolmuş." };
-    } catch (e) {
-      return { ok: false, hata: "Davet kodu şu an doğrulanamıyor. Sonra tekrar dene." };
     }
   }
 
@@ -1254,14 +1237,19 @@
     state.gonderiler = [];
     state.ogretmenDersleri = [];
     state.bekleyen = [];
+    state.ogretmenBasvurulari = [];
     state.reddedilen = null;
     state.onayHata = null;
+    state.basvuruHata = null;
+    state.basvuruIslemde = null;
+    state.kayitMesaj = null;
     window.storage.delete("sosyolab:oturum").catch(function () { /* yok sayılır */ });
   }
 
   function hataGoster(mesaj, alan) {
     state.hata = mesaj;
     state.girisDeneniyor = false;
+    state.kayitGonderiliyor = false;
     ciz();
     const el = document.getElementById(alan);
     if (el) el.focus();
@@ -1299,6 +1287,9 @@
           ${yetkili() ? `
           <button class="sb-link" data-action="onay" aria-current="${state.gorunum === "onay"}">
             ${svg(I.clipboard)} Onay Bekleyenler${state.bekleyen.length ? `<span class="rozet">${state.bekleyen.length}</span>` : ""}
+          </button>
+          <button class="sb-link" data-action="basvurular" aria-current="${state.gorunum === "basvurular"}">
+            ${svg(I.users)} Öğretim Elemanı Başvuruları${state.ogretmenBasvurulari.filter(function (b) { return b.teacher_status === "pending"; }).length ? `<span class="rozet">${state.ogretmenBasvurulari.filter(function (b) { return b.teacher_status === "pending"; }).length}</span>` : ""}
           </button>` : ""}
 
           <p class="sb-section">2026–2027 AKADEMİK YILI</p>
@@ -1384,6 +1375,9 @@
     }
     if (state.gorunum === "derslerim") {
       return '<button data-action="panel">Bölüm Arşivi</button><span class="sep">/</span><span class="now">Derslerim</span>';
+    }
+    if (state.gorunum === "basvurular") {
+      return '<button data-action="panel">Bölüm Arşivi</button><span class="sep">/</span><span class="now">Öğretim Elemanı Başvuruları</span>';
     }
     if (state.gorunum === "ders") {
       const c = dersBul(state.dersId);
@@ -1940,11 +1934,53 @@
       </div>`;
   }
 
+  function ogretmenBasvurulariGorunumu() {
+    if (!yetkili()) return panelGorunumu();
+    const liste = state.ogretmenBasvurulari.slice();
+    return `
+      <div class="content">
+        <div class="page-head">
+          <p class="eyebrow">${svg(I.users, "icon-sm")} YÖNETİM</p>
+          <h1 class="page-title">Öğretim Elemanı Başvuruları</h1>
+          <p class="page-sub">Teacher davet koduyla açılan başvuruları buradan onaylayabilir veya reddedebilirsin.</p>
+        </div>
+        ${state.basvuruHata ? `<p class="form-error" role="alert">${esc(state.basvuruHata)}</p>` : ""}
+        ${!BULUT.etkin
+          ? `<div class="empty">${svg(I.users, "icon-lg")}<strong>Başvuru kuyruğu kapalı.</strong><p>Bu sürüm sunucuya bağlı değil.</p></div>`
+          : liste.length
+            ? liste.map(ogretmenBasvuruKarti).join("")
+            : `<div class="empty">${svg(I.users, "icon-lg")}<strong>Başvuru bulunamadı.</strong><p>Yeni teacher başvuruları burada görünecek.</p></div>`}
+      </div>`;
+  }
+
+  function ogretmenBasvuruDurumuEtiket(durum) {
+    if (durum === "approved") return "Onaylandı";
+    if (durum === "rejected") return "Reddedildi";
+    return "Onay bekliyor";
+  }
+
+  function ogretmenBasvuruKarti(b) {
+    const durum = String(b.teacher_status || "pending");
+    const islemde = state.basvuruIslemde === b.id;
+    return `
+      <div class="inceleme">
+        <span class="durum durum-${esc(durum)}">${esc(ogretmenBasvuruDurumuEtiket(durum))}</span>
+        <h3>${esc(b.display_name || b.username || "İsimsiz kullanıcı")}</h3>
+        <p class="alt">@${esc(b.username || "-")} · ${esc(String(b.created_at || "").slice(0, 10))}</p>
+        ${durum === "pending" ? `
+          <div class="inceleme-actions">
+            <button class="btn btn-onay" data-action="basvuru-onay" data-id="${esc(b.id)}"${state.basvuruIslemde ? " disabled" : ""}>${
+              islemde ? '<span class="spinner"></span> İşleniyor…' : "Onayla"}</button>
+            <button class="btn btn-ret" data-action="basvuru-ret" data-id="${esc(b.id)}"${state.basvuruIslemde ? " disabled" : ""}>Reddet</button>
+          </div>` : ""}
+      </div>`;
+  }
+
   function bekleyenKarti(g) {
     const c = dersBul(g.course_id);
     const tur = PAYLASIM_TURLERI.filter(function (t) { return t.id === g.material_type; })[0];
     const yukleyen = (g.profiles && g.profiles.display_name) || "Bilinmiyor";
-    const no = (g.profiles && g.profiles.student_number) || "";
+    const no = (g.profiles && g.profiles.username) || "";
     const secili = state.reddedilen === g.id;
     const mesgul = !!state.islemde;
     return `
@@ -2035,6 +2071,24 @@
     bildir(durum === "approved" ? "Materyal onaylandı ve arşive eklendi." : "Materyal reddedildi.");
   }
 
+  async function ogretmenBasvurusunuSonuclandir(id, karar) {
+    if (state.basvuruIslemde) return;
+    state.basvuruIslemde = id;
+    state.basvuruHata = null;
+    ciz();
+    let r;
+    try { r = await ogretmenBasvurusuKararaBagla(id, karar); }
+    catch (e) { r = { ok: false, hata: "İşlem tamamlanamadı. Bağlantını kontrol et." }; }
+    state.basvuruIslemde = null;
+    if (!r.ok) {
+      state.basvuruHata = r.hata;
+      return ciz();
+    }
+    await bulutYenile();
+    ciz();
+    bildir(karar === "approve" ? "Başvuru onaylandı." : "Başvuru reddedildi.");
+  }
+
   /* ---------- genel arama ---------- */
 
   function aramaKatmani() {
@@ -2100,6 +2154,7 @@
       : state.gorunum === "derslerim" ? derslerimGorunumu()
       : state.gorunum === "gonderilerim" ? gonderilerimGorunumu()
       : state.gorunum === "onay" ? onayGorunumu()
+      : state.gorunum === "basvurular" ? ogretmenBasvurulariGorunumu()
       : panelGorunumu();
 
     const katman = state.katman === "paylas" ? paylasKatmani()
@@ -2206,8 +2261,9 @@
     if (KATMAN_ACAN[action] && !acikKatman()) odakDonusu = hedef;
     if (KATMAN_KAPATAN[action]) odagiGeriVer();
 
+    if (action === "auth-sekme") return authSekmeDegistir(hedef.dataset.sekme);
     if (action === "giris") return girisDene();
-    if (action === "teacher-giris") return ogretimElemaniGirisiDene();
+    if (action === "kayit-ol") return kayitDene();
 
     if (action === "cikis") {
       oturumuTemizle();
@@ -2237,6 +2293,13 @@
       return ciz();
     }
 
+    if (action === "basvurular") {
+      if (!yetkili()) return bildir("Bu bölüm yalnızca yöneticilere açık.");
+      state.gorunum = "basvurular"; state.katman = null; state.sidebarAcik = false;
+      if (BULUT.etkin) state.ogretmenBasvurulari = await ogretmenBasvurulariniGetir();
+      return ciz();
+    }
+
     if (action === "paylas-ac") {
       if (!paylasimAcikMi()) {
         return bildir("Materyal paylaşmak için atanmış bir ders açmalısın.");
@@ -2250,6 +2313,8 @@
     if (action === "ret-ac") { if (!yetkili()) return bildir("Yetkin yok."); state.reddedilen = hedef.dataset.id; return ciz(); }
     if (action === "ret-kapat") { state.reddedilen = null; return ciz(); }
     if (action === "reddet") { if (!yetkili()) return bildir("Yetkin yok."); return sonuclandir(hedef.dataset.id, "rejected"); }
+    if (action === "basvuru-onay") { if (!yetkili()) return bildir("Yetkin yok."); return ogretmenBasvurusunuSonuclandir(hedef.dataset.id, "approve"); }
+    if (action === "basvuru-ret") { if (!yetkili()) return bildir("Yetkin yok."); return ogretmenBasvurusunuSonuclandir(hedef.dataset.id, "reject"); }
     if (action === "ders") return dersAc(hedef.dataset.id);
 
     if (action === "donem") { state.nav.donem = hedef.dataset.id; state.katman = null; return ciz(); }
@@ -2341,7 +2406,10 @@
   root.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     if (e.target.id === "kimlik" || e.target.id === "sifre") { e.preventDefault(); girisDene(); }
-    if (e.target.id === "teacher-eposta" || e.target.id === "teacher-sifre") { e.preventDefault(); ogretimElemaniGirisiDene(); }
+    if (e.target.id === "kayit-kullanici" || e.target.id === "kayit-sifre" || e.target.id === "kayit-sifre-tekrar" || e.target.id === "kayit-davet" || e.target.id === "kayit-adsoyad") {
+      e.preventDefault();
+      kayitDene();
+    }
   });
 
   function odagiGeriVer() {

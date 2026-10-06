@@ -19,12 +19,12 @@ function mustContain(pattern, message) {
 function main() {
   mustContain('const ROLLER = ["ogrenci", "teacher", "admin"]', 'ROLLER içinde teacher olmalı');
   mustContain('teacher: "Öğretim Elemanı"', 'ROL_ETIKET teacher etiketi olmalı');
-  mustContain('Öğretim Elemanı Girişi', 'Giriş ekranında Öğretim Elemanı Girişi olmalı');
+  mustContain('Öğretim Elemanı Başvuruları', 'Admin menüsünde öğretim elemanı başvuruları görünmeli');
 
-  mustContain('async function ogretimElemaniGirisiDene()', 'Teacher login deneme akışı olmalı');
-  mustContain('async function ogretimElemaniGirisi(eposta, parola)', 'Teacher login fonksiyonu olmalı');
-  mustContain('signInWithPassword({ email: eposta, password: parola })', 'Teacher login signInWithPassword kullanmalı');
-  mustContain('if (BULUT.profil.role !== "teacher")', 'Teacher login role kontrolü yapmalı');
+  mustContain('data-action="auth-sekme"', 'Auth ekranında giriş/kayıt sekmeleri olmalı');
+  mustContain('async function kayitDene()', 'Kayıt akışı olmalı');
+  mustContain('rpc("kullanici_kaydi_tamamla"', 'Kayıt akışı kullanıcı_kaydi_tamamla RPC çağırmalı');
+  mustContain('rpc("kullanici_email_bul"', 'Giriş akışı kullanıcı_email_bul RPC çağırmalı');
 
   mustContain('Derslerim', 'Sidebar içinde Derslerim görünümü olmalı');
   mustContain('function derslerimGorunumu()', 'Derslerim sayfası olmalı');
@@ -36,6 +36,8 @@ function main() {
 
   mustContain('const yetkili = () => !!state.oturum && state.oturum.rol === "admin";', 'Admin yetki semantiği korunmalı');
   mustContain('if (!yetkili()) return panelGorunumu();', 'Admin onay görünümü admin kapısıyla korunmalı');
+  mustContain('async function ogretmenBasvurusunuSonuclandir(id, karar)', 'Admin başvuru karar fonksiyonu olmalı');
+  mustContain('rpc("ogretmen_basvurusunu_karara_bagla"', 'Admin başvuru onay/reddi RPC üzerinden olmalı');
 
   console.log('PASS regression_teacher_frontend_test');
 }

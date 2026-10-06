@@ -303,7 +303,7 @@ select n.nspname as sema, c.relname as tablo,
 --
 -- Beklenen:
 --   anon          → HİÇBİR tabloda hiçbir izin
---   authenticated → profiles: SELECT, INSERT, UPDATE
+--   authenticated → profiles: SELECT, UPDATE
 --                   teacher_courses: SELECT, INSERT, DELETE
 --                   materials: SELECT, INSERT, UPDATE, DELETE
 --                   davet_dogrulamalari: HİÇBİRİ (RPC mimarisi — aşağıdaki not)
@@ -318,7 +318,6 @@ with sozlesme(table_name, grantee, privilege_type, durum) as (
     -- ZORUNLU — uygulama bu izin olmadan çalışmaz. Eksikse bulgu verir.
     -- ----------------------------------------------------------------------
     ('profiles',            'authenticated', 'SELECT',     'ZORUNLU'),
-    ('profiles',            'authenticated', 'INSERT',     'ZORUNLU'),
     ('profiles',            'authenticated', 'UPDATE',     'ZORUNLU'),
     ('teacher_courses',     'authenticated', 'SELECT',     'ZORUNLU'),
     ('teacher_courses',     'authenticated', 'INSERT',     'ZORUNLU'),
@@ -525,6 +524,13 @@ with hedef(ad, imza, tip, mod) as (
     ('is_admin',                 'public.is_admin()',                      'politika', 'HER'),
     ('is_teacher',               'public.is_teacher()',                    'politika', 'HER'),
     ('teacher_has_course',       'public.teacher_has_course(text)',        'politika', 'HER'),
+    ('normalize_username',       'public.normalize_username(text)',         'ic',       'HER'),
+    ('uye_profili_var_mi',       'public.uye_profili_var_mi()',            'politika', 'HER'),
+    ('kullanici_email_bul',      'public.kullanici_email_bul(text)',       'login',    'HER'),
+    ('kayit_icin_davet_kodu_kullan', 'public.kayit_icin_davet_kodu_kullan(text)', 'ic', 'HER'),
+    ('kullanici_kaydi_tamamla',  'public.kullanici_kaydi_tamamla(text,text,text)', 'rpc', 'HER'),
+    ('ogretmen_basvurusunu_karara_bagla', 'public.ogretmen_basvurusunu_karara_bagla(uuid,text,text)', 'rpc', 'HER'),
+    ('admin_davet_kodu_olustur', 'public.admin_davet_kodu_olustur(text,text,smallint,text,timestamptz,integer)', 'rpc', 'HER'),
     ('davet_dogrulandi_mi',      'public.davet_dogrulandi_mi()',           'politika', 'HER'),
     ('davet_kullan',             'public.davet_kullan(text)',              'rpc',      'HER'),
     ('denetim_yaz',              'public.denetim_yaz(text,text,text,jsonb)','ic',      'HER'),
@@ -555,9 +561,15 @@ select h.ad as fonksiyon, h.tip,
       then 'search_path AYARLANMAMIŞ (arama yolu enjeksiyonuna açık)'
     when not f.prosecdef
       then 'SECURITY DEFINER DEĞİL'
-    when exists (select 1 from izin i where i.specific_name = f.specific_name
+    when h.tip <> 'login' and exists (select 1 from izin i where i.specific_name = f.specific_name
                    and i.grantee in ('anon', 'PUBLIC'))
       then 'anon ya da PUBLIC EXECUTE var'
+    when h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
+                                           and i.grantee = 'anon')
+      then 'login fonksiyonu anon EXECUTE bekliyor'
+    when h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
+                                           and i.grantee = 'authenticated')
+      then 'login fonksiyonu authenticated EXECUTE bekliyor'
     when h.tip = 'ic' and exists (select 1 from izin i where i.specific_name = f.specific_name
                                     and i.grantee = 'authenticated')
       then 'istemciye kapalı olmalıydı ama authenticated EXECUTE var'
@@ -571,8 +583,13 @@ select h.ad as fonksiyon, h.tip,
  where to_regprocedure(h.imza) is null
     or f.proconfig is null
     or not f.prosecdef
-    or exists (select 1 from izin i where i.specific_name = f.specific_name
+   or (h.tip <> 'login' and exists (select 1 from izin i where i.specific_name = f.specific_name
                  and i.grantee in ('anon', 'PUBLIC'))
+     )
+   or (h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
+                            and i.grantee = 'anon'))
+   or (h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
+                            and i.grantee = 'authenticated'))
     or (h.tip = 'ic' and exists (select 1 from izin i where i.specific_name = f.specific_name
                                    and i.grantee = 'authenticated'))
     or (h.tip in ('politika', 'rpc')
@@ -645,7 +662,12 @@ with repo_fonksiyonlari(ad) as (
     ('denetim_yaz'), ('denetim_temizle'), ('materials_denetim_guncelle'),
     ('materials_denetim_sil'), ('profiles_denetim'), ('davet_dogrulama_denetim'),
     -- göç 003
-    ('dosya_materyale_bagli_mi')
+    ('dosya_materyale_bagli_mi'),
+    -- göç 006
+    ('normalize_username'), ('uye_profili_var_mi'), ('kullanici_email_bul'),
+    ('kayit_icin_davet_kodu_kullan'), ('kullanici_kaydi_tamamla'),
+    ('ogretmen_basvurusunu_karara_bagla'), ('admin_davet_kodu_olustur'),
+    ('profiles_kayit_alanlarini_koru')
 ),
 sd as (
   -- Genel tarama: public şemasındaki TÜM SECURITY DEFINER fonksiyonlar.

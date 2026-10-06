@@ -110,7 +110,7 @@ hiçbir adımda kullanılmaz.
 
    ```sql
    -- SQL Editor. <TESTKOD> yerine üretilmiş bir değer koy:
-   --   select upper(encode(extensions.gen_random_bytes(10), 'hex'));
+   --   select upper(encode(extensions.gen_random_bytes(16), 'hex')); -- 32 hex = 128-bit
    insert into public.davet_kodlari (kod_ozeti, etiket, azami_kullanim, gecerlilik_sonu)
    values (extensions.crypt(upper('<TESTKOD>'), extensions.gen_salt('bf', 10)),
            'GEÇİCİ TEST — silinecek', 5, now() + interval '2 hours');

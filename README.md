@@ -51,23 +51,29 @@ python -m http.server 8000
 
 ## Giriş modeli
 
-Giriş ekranında tek bir form vardır; girilen kimliğe göre yönlendirme yapılır.
+Giriş ekranı iki sekmelidir: `Giriş Yap` ve `Kayıt Ol`.
 
-- **Öğrenci** — 10 haneli öğrenci numarası + davet kodu. Arşivi görüntüler,
-  arar, favori ekler, materyal gönderir, dosya indirir.
-- **Öğretim Elemanı** — e-posta + parola ile giriş yapar. Yalnızca kendisine
-   atanmış derslere materyal yükler; bu gönderiler sunucuda doğrudan yayınlanır.
-- **Yönetici** — `sosyolog35` kullanıcı adı + parola. Ek olarak gönderileri
-  önizler, onaylar, reddeder ve arşivden materyal kaldırır.
+- **Kayıt Ol** — kullanıcı adı + parola + davet kodu ile hesap açılır.
+   Davet kodu türüne göre hesap sınıflandırılır:
+   - `student` daveti: hesap `user` olarak açılır, `class_year` atanır.
+   - `teacher` daveti: hesap `user` olarak açılır, `teacher_status = pending` olur.
+- **Giriş Yap** — kullanıcı adı + parola ile yapılır. İstemci, kullanıcı adını
+   `public.kullanici_email_bul()` ile iç kimliğe çözümler; parola doğrulaması
+   Supabase Auth'ta yapılır.
+- **Yönetici** — `sosyolog35` kullanıcı adı + parola ile giriş yapar.
+   Ek olarak gönderi inceleme ve öğretim elemanı başvurusu onay/reddi yapar.
+
+Öğretim elemanı yetkisi otomatik verilmez. `teacher` davet koduyla açılan
+hesaplar yönetici onayıyla `public.ogretmen_basvurusunu_karara_bagla()`
+üzerinden `role = 'teacher'` seviyesine yükselir.
 
 Yönetici girişinde parola tarayıcıda hiçbir şeyle karşılaştırılmaz. Takma ad
 `sosyolog.35@sosyolab.local` adresine eşlenir, doğrulama Supabase Auth'ta
 yapılır ve yetki **yalnızca** `public.profiles.role = 'admin'` satırından gelir.
 Zincirin herhangi bir halkası kopuyorsa giriş reddedilir.
 
-Öğretim elemanı girişinde de aynı ilke geçerlidir: doğrulama Supabase Auth'ta
-`signInWithPassword` ile yapılır, öğretim elemanı arayüzüne giriş yalnızca
-`public.profiles.role = 'teacher'` ise açılır.
+Öğretim elemanı görünümü yalnızca `public.profiles.role = 'teacher'` ve
+`teacher_status = 'approved'` olan hesaplar için açılır.
 
 `sosyolog35` bir **takma addır, yetki kaynağı değildir.** `localStorage`,
 `sessionStorage`, DOM ya da herhangi bir JavaScript değişkeni yönetici yetkisi
@@ -80,13 +86,57 @@ güvenilir bir taraf olmadığından akış baştan reddedilir.
 
 | Mod | Davranış |
 |---|---|
-| `"local"` (varsayılan) | Kod `config.js` içindeki `LOCAL_INVITE_CODE` ile tarayıcıda karşılaştırılır. **Güvenlik önlemi değildir:** dosyaya bakan herkes kodu görür ve anonim giriş açık olduğu için kod hiç bilinmeden de oturum açılabilir. |
-| `"server"` | Kod Supabase'e gönderilir; `public.davet_kullan()` RPC'si bcrypt özetiyle karşılaştırır, süresini ve kullanım hakkını denetler. Geçerli kod hiçbir zaman istemci koduna girmez. |
+| `"server"` | Üretim modu. Kayıt sırasında kod yalnızca Supabase'e gider; `public.kayit_icin_davet_kodu_kullan()` tüketimi sunucuda yapar. |
+| `"local"` | Sadece geçiş/demolar içindir. Kayıt ve davet damgası davranışı sunucu moduna göre eksik kalabilir. |
 
-`"server"` modu `supabase/migrations/001_davet_kodlari.sql` göçünü gerektirir.
-**Göç uygulanmadan bu modu açmayın** — öğrenci girişi tamamen durur.
+`"server"` modu en az `001` ve `006` göçlerini gerektirir.
+**Göç uygulanmadan bu modu açmayın** — self-registration akışı çalışmaz.
 Üretimde hedeflenen mod budur; sıralama için
 `docs/DEPLOYMENT-SECURITY.md` bölüm 11.
+
+### PRE-006 geçiş kontrolü (legacy hesap uyumluluğu)
+
+`006` öncesi açılmış hesaplar için `username` ve `auth_login_email` alanları
+boş olabilir. 006 frontend'i yayımlanmadan önce bu hesaplar tespit edilip
+backfill planı uygulanmalıdır.
+
+1. **Legacy adaylarını listele:**
+   ```sql
+   select p.id,
+          p.role,
+          p.display_name,
+          u.email as auth_email,
+          p.username,
+          p.auth_login_email
+     from public.profiles p
+     left join auth.users u on u.id = p.id
+    where p.username is null
+       or p.auth_login_email is null
+    order by p.created_at;
+   ```
+2. **Otomatik tahmini username üret (öneri çıktısı):**
+   ```sql
+   with aday as (
+     select p.id,
+            lower(regexp_replace(
+              coalesce(nullif(btrim(p.display_name), ''), 'kullanici'),
+              '[^a-z0-9._]+', '', 'gi'
+            )) as taban
+       from public.profiles p
+      where p.username is null
+   )
+   select id,
+          case
+            when length(taban) between 4 and 24 then taban
+            else 'user.' || substr(md5(id::text), 1, 12)
+          end as onerilen_username
+     from aday;
+   ```
+3. **Backfill'i açıkça uygula:** önerilen username'leri çakışma kontrolüyle
+   `profiles.username` alanına yaz; `auth_login_email` için yalnızca iç
+   (`@auth.sosyolab.local`) eşlemeler kullan.
+4. **Deploy sırası:** önce SQL zinciri (`001→...→006`) + backfill doğrulaması,
+   sonra 006 frontend yayını. Frontend 006, DB 006'dan önce yayımlanmamalı.
 
 ## Güvenlik sınırı nerede
 
@@ -164,9 +214,11 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
 2. **Şemayı kur** — SQL Editor → `supabase/schema.sql` dosyasının tamamını
    yapıştırıp çalıştır.
 
-3. **Anonim girişi aç** — Authentication → Providers → Anonymous Sign-Ins.
-   Öğrenci gönderimleri anonim oturumla yapılır; her gönderinin yine de kendi
-   `auth.uid()` kimliği olur ve RLS bu kimliğe göre çalışır.
+3. **E-posta ile kayıt/girişi hazırla** — Authentication → Providers → Email.
+   `signUp` akışının çalışması için Email provider açık olmalı.
+   Uygulama kendi iç alan adı (`@auth.sosyolab.local`) ile kayıt açtığı için
+   üretimde e-posta doğrulama gereksinimi kapatılmalı (aksi durumda
+   `kullanici_kaydi_tamamla` akışı tamamlanamaz).
 
 4. **Yönetici hesabı aç** — Authentication → Users → Add user:
    - E-posta: `sosyolog.35@sosyolab.local`
@@ -213,10 +265,11 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    | `supabase/migrations/001_davet_kodlari.sql` | Sunucu tarafında davet kodu doğrulaması; gönderim iznini doğrulanmış davete bağlar |
    | `supabase/migrations/002_denetim_kaydi.sql` | Yönetici işlemleri için değiştirilemez denetim kaydı |
    | `supabase/migrations/003_launch_gate_hardening.sql` | Arşiv **okumasını** ve depo yüklemesini de davete bağlar; gönderimde dosya sahipliğini zorunlu kılar; başarısız gönderimin bıraktığı yetim dosyanın silinmesine izin verir |
-   | `supabase/migrations/005_teacher_role.sql` | `teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için ders-sahipliği kontrollü doğrudan yayın akışı |
    | `supabase/migrations/004_revoke_public_table_ddl_privs.sql` | Residual hardening: `denetim_kaydi` ve `davet_dogrulamalari` üzerinde `anon/authenticated` için `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır |
+   | `supabase/migrations/005_teacher_role.sql` | `teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için ders-sahipliği kontrollü doğrudan yayın akışı |
+   | `supabase/migrations/006_self_registration_invites.sql` | Kullanıcı adı+parola self-registration, sınıf bazlı davet tipleri, teacher pending + admin approval |
 
-   Önerilen uygulama sırası: `001` → `002` → `003` → `004_revoke_public_table_ddl_privs` → `005_teacher_role`.
+   Önerilen uygulama sırası: `001` → `002` → `003` → `004_revoke_public_table_ddl_privs` → `005_teacher_role` → `006_self_registration_invites`.
 
    Öğretim elemanı hesabı ve ders ataması için: `docs/TEACHER-SETUP.md`.
 

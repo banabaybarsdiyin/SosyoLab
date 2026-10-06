@@ -23,26 +23,17 @@
    ----------------------------------------------------------------------------
    INVITE_MODE — davet kodu doğrulaması
    ----------------------------------------------------------------------------
-   "server"  ÜRETİMDE KULLANILACAK MOD.
-             Davet kodu Supabase'e gönderilir; public.davet_kullan(p_kod)
-             RPC'si kodu hash'lenmiş kayıtla karşılaştırır, süresini ve
-             kullanım hakkını denetler, profiles.invite_verified damgasını
-             basar. Geçerli kod hiçbir zaman istemci koduna girmez.
+  "server"  ÜRETİMDE KULLANILACAK MOD.
+         Kayıt sırasında davet kodu yalnızca Supabase'e gönderilir;
+         public.kayit_icin_davet_kodu_kullan() /
+         public.kullanici_kaydi_tamamla() akışı kodu hash'lenmiş kayıtla
+         karşılaştırır, süresini/kullanım hakkını denetler ve kullanıcıyı
+         student(1..4) veya teacher(pending) olarak sınıflandırır.
 
-             ÖN KOŞUL: supabase/migrations/001_davet_kodlari.sql veritabanında
-             çalıştırılmış olmalı ve en az bir davet kodu tanımlanmalıdır.
-             Göç uygulanmadan bu mod açılırsa öğrenci girişi çalışmaz.
+         ÖN KOŞUL: 001..006 göçleri veritabanında uygulanmış olmalı.
 
-   "local"   GEÇİCİ MOD — varsayılan. Kod aşağıdaki LOCAL_INVITE_CODE ile
-             tarayıcıda karşılaştırılır.
-
-             BU BİR GÜVENLİK ÖNLEMİ DEĞİLDİR. Bu dosyaya bakan herkes kodu
-             görür; dahası anonim giriş açık olduğu için kod hiç bilinmeden
-             de oturum açılabilir. Yalnızca kazara girişi azaltır.
-             Bölümün gerçek davet kodunu buraya YAZMAYIN.
-
-   LOCAL_INVITE_CODE yalnızca "local" modda okunur; "server" modda tamamen
-   göz ardı edilir ve bu satır silinmelidir.
+  "local"   GEÇİCİ/legacy mod. Davet damgası kontrolleri server moduna göre
+         eksik kalabilir. Üretimde kullanılmamalıdır.
    ============================================================================ */
 
 window.SOSYOLAB_CONFIG = {
