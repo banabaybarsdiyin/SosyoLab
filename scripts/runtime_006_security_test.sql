@@ -1,5 +1,17 @@
 -- Real SQL/RLS runtime; assertions are SECURITY INVOKER. T17 runs in JS
 -- using two simultaneous sessions blocked on the same final-slot row.
+-- Kayıt artık yalnız server-side (Edge Function, service_role) yapılır.
+-- runtime_test.kayit, Edge Function'ın oturumdaki kullanıcı (auth.uid()) için
+-- yaptığı service_role çağrısını temsil eder: SECURITY DEFINER, sahibi service_role.
+create function runtime_test.kayit(u text, kod text, ad text default null) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+begin
+  return public.kullanici_kaydi_tamamla(auth.uid(), u, kod, ad);
+end;
+$$;
+alter function runtime_test.kayit(text,text,text) owner to service_role;
+grant select on all tables in schema public to service_role;
+
 create function runtime_test.material(course text, file text) returns void
 language sql security invoker as $$
   insert into public.materials(course_id,uploader_id,title,file_path,file_name)
@@ -39,7 +51,7 @@ select runtime_test.denied($q$insert into storage.objects(bucket_id,name) values
 select 'PASS T05';
 
 select runtime_test.login(16);
-select runtime_test.denied($q$select public.kullanici_kaydi_tamamla('invalid.user','SYNTHETIC-WRONG')$q$,
+select runtime_test.denied($q$select runtime_test.kayit('invalid.user','SYNTHETIC-WRONG')$q$,
   'P0001','Davet kodu geçersiz');
 select runtime_test.assert_true(not public.uye_profili_var_mi() and not public.davet_dogrulandi_mi(),'invalid no membership');
 reset role;
@@ -48,12 +60,12 @@ select 'PASS T06';
 
 set role authenticated;
 select runtime_test.login(10);
-select public.kullanici_kaydi_tamamla('student.user',repeat('1',32));
+select runtime_test.kayit('student.user',repeat('1',32));
 select runtime_test.assert_true((select role='user' and class_year=2 and teacher_status is null
   from public.profiles where id=auth.uid()),'student classification');
 select 'PASS T07';
 select runtime_test.login(11);
-select public.kullanici_kaydi_tamamla('pending.teacher',repeat('2',32),'Synthetic Pending');
+select runtime_test.kayit('pending.teacher',repeat('2',32),'Synthetic Pending');
 select runtime_test.assert_true((select role='user' and class_year is null and teacher_status='pending'
   from public.profiles where id=auth.uid()),'teacher pending classification');
 select 'PASS T08';
@@ -67,11 +79,11 @@ select runtime_test.denied($q$insert into public.profiles(id,username) values(au
 select runtime_test.assert_true(not public.uye_profili_var_mi(),'squatter no profile');
 select 'PASS T11';
 select runtime_test.login(14);
-select runtime_test.denied($q$select public.kullanici_kaydi_tamamla(' Student.User ',repeat('1',32))$q$,'23505');
+select runtime_test.denied($q$select runtime_test.kayit(' Student.User ',repeat('1',32))$q$,'23505');
 select runtime_test.assert_true(not public.uye_profili_var_mi(),'collision no membership');
 select 'PASS T12';
 select runtime_test.login(15);
-select runtime_test.denied($q$select public.kullanici_kaydi_tamamla('admin',repeat('1',32))$q$,'P0001','kullanılamaz');
+select runtime_test.denied($q$select runtime_test.kayit('admin',repeat('1',32))$q$,'P0001','kullanılamaz');
 select 'PASS T13';
 
 -- Admin cannot create/update canonical sos401 assignments, even with valid teacher.
@@ -116,8 +128,8 @@ select 'PASS T16';
 create temp table counts_before as select id,kullanim_sayisi from public.davet_kodlari;
 set role authenticated;
 select runtime_test.login(10);
-select runtime_test.denied($q$select public.kullanici_kaydi_tamamla('student.user',repeat('1',32))$q$,'P0001','zaten tamamlanmış');
-select runtime_test.denied($q$select public.kullanici_kaydi_tamamla('student.user',repeat('2',32))$q$,'P0001','zaten tamamlanmış');
+select runtime_test.denied($q$select runtime_test.kayit('student.user',repeat('1',32))$q$,'P0001','zaten tamamlanmış');
+select runtime_test.denied($q$select runtime_test.kayit('student.user',repeat('2',32))$q$,'P0001','zaten tamamlanmış');
 reset role;
 select runtime_test.assert_true(not exists(select 1 from public.davet_kodlari k join counts_before b using(id) where k.kullanim_sayisi<>b.kullanim_sayisi),'retry counts stable');
 drop table counts_before;
@@ -128,10 +140,10 @@ select runtime_test.identity(17),id from public.davet_kodlari where etiket='synt
 update public.davet_kodlari set kullanim_sayisi=kullanim_sayisi+1 where etiket='synthetic teacher';
 set role authenticated;
 select runtime_test.login(17);
-select runtime_test.denied($q$select public.kullanici_kaydi_tamamla('stamped.teacher','SYNTHETIC-WRONG','Synthetic stamped')$q$,'P0001','damgasıyla eşleşmiyor');
-select runtime_test.denied($q$select public.kullanici_kaydi_tamamla('stamped.teacher',repeat('1',32),'Synthetic stamped')$q$,'P0001','damgasıyla eşleşmiyor');
+select runtime_test.denied($q$select runtime_test.kayit('stamped.teacher','SYNTHETIC-WRONG','Synthetic stamped')$q$,'P0001','damgasıyla eşleşmiyor');
+select runtime_test.denied($q$select runtime_test.kayit('stamped.teacher',repeat('1',32),'Synthetic stamped')$q$,'P0001','damgasıyla eşleşmiyor');
 select runtime_test.assert_true(not public.uye_profili_var_mi(),'wrong stamp cannot register');
-select public.kullanici_kaydi_tamamla('stamped.teacher',repeat('2',32),'Synthetic stamped');
+select runtime_test.kayit('stamped.teacher',repeat('2',32),'Synthetic stamped');
 select runtime_test.assert_true((select teacher_status='pending' from public.profiles where id=auth.uid()),'same stamp classified');
 reset role;
 select runtime_test.assert_true((select kullanim_sayisi=2 from public.davet_kodlari where etiket='synthetic teacher'),'stamp retry no double count');
@@ -148,7 +160,7 @@ select runtime_test.assert_true((select count(*)=1 from storage.objects where na
 select 'PASS T19';
 
 select runtime_test.login(13);
-select public.kullanici_kaydi_tamamla('approved.teacher',repeat('2',32),'Synthetic Approved');
+select runtime_test.kayit('approved.teacher',repeat('2',32),'Synthetic Approved');
 select runtime_test.login(1);
 select public.ogretmen_basvurusunu_karara_bagla(runtime_test.identity(13),'approve');
 insert into public.teacher_courses(teacher_id,course_id) values(runtime_test.identity(13),'sos101');
@@ -179,7 +191,7 @@ select runtime_test.denied($q$select runtime_test.material('sos101','pending.pdf
 select runtime_test.denied($q$insert into storage.objects(bucket_id,name) values('materyaller',auth.uid()::text||'/pending.pdf')$q$,'42501');
 select 'PASS T24';
 select runtime_test.login(12);
-select public.kullanici_kaydi_tamamla('rejected.teacher',repeat('2',32),'Synthetic Rejected');
+select runtime_test.kayit('rejected.teacher',repeat('2',32),'Synthetic Rejected');
 select runtime_test.login(1);
 select public.ogretmen_basvurusunu_karara_bagla(runtime_test.identity(12),'reject','Synthetic reason');
 select runtime_test.login(12);
@@ -190,8 +202,20 @@ select runtime_test.denied($q$insert into storage.objects(bucket_id,name) values
 select 'PASS T25';
 reset role;
 
--- Login RPC exposes only internal emails; personal legacy Auth email stays private.
-set role anon;
+-- Login resolver is server-only; it never returns personal legacy Auth email.
+set role service_role;
 select runtime_test.assert_true(public.kullanici_email_bul('no.such.user') like '%@auth.sosyolab.local'
   and public.kullanici_email_bul('student.user') like '%@auth.sosyolab.local','login internal email only');
+reset role;
+-- Clients cannot call any server-side registration/login function directly.
+set role anon;
+select runtime_test.denied($q$select public.kullanici_email_bul('student.user')$q$,'42501');
+select runtime_test.denied($q$select public.kayit_on_kontrol('x.user',repeat('1',32))$q$,'42501');
+select runtime_test.denied($q$select public.kullanici_kaydi_tamamla(runtime_test.identity(4),'x.user',repeat('1',32))$q$,'42501');
+reset role;
+set role authenticated;
+select runtime_test.login(4);
+select runtime_test.denied($q$select public.kullanici_email_bul('student.user')$q$,'42501');
+select runtime_test.denied($q$select public.kayit_on_kontrol('x.user',repeat('1',32))$q$,'42501');
+select runtime_test.denied($q$select public.kullanici_kaydi_tamamla(auth.uid(),'x.user',repeat('1',32))$q$,'42501');
 reset role;

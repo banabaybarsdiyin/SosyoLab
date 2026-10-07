@@ -219,21 +219,21 @@
     { id: "m21", ders: "sos101", tur: "kaynak", baslik: "Dönem okuma listesi", hafta: null, meta: "PDF · 2 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-04", etiketler: ["Okuma listesi"], aciklama: "Zorunlu ve önerilen okumalar ayrı ayrı." }
   ];
   /* ---------- davet kodu doğrulaması ----------
-     006: username/password kayıt, public.kullanici_kaydi_tamamla RPC'siyle
-     tamamlanır. İç davet helper'ı student/teacher sınıfını doğrular ve atomik
-     tüketir; public.davet_kullan istemci erişimi kapalıdır. Profil + davet
+     006: username/password kayıt ve giriş Edge Function sınırından geçer
+     (`kayit`, `giris`). Public Auth signup kapalıdır; Auth kullanıcısını ve
+     iç login kimliğini yalnız sunucu üretir, tarayıcı bu kimliği hiç görmez.
+     İç davet helper'ı student/teacher sınıfını doğrular ve atomik tüketir;
+     public.davet_kullan istemci erişimi kapalıdır. Profil + davet
      membership ve teacher durumuna göre erişim sınırı RLS'te uygulanır.
      Production INVITE_MODE="server" kullanır; gerekli şema schema + 001..006.
      LOCAL_INVITE_CODE production yapılandırmasında saklanmaz. */
 
   /* Yönetici giriş takma adı. Bu YALNIZCA bir kullanıcı adıdır; yetki vermez.
-     Zincir: takma ad → sabit e-posta eşlemesi → Supabase parola doğrulaması →
-     kimliği doğrulanmış UUID → profiles satırı → role === "admin".
-     Zincirin herhangi bir halkası kopuyorsa giriş reddedilir. Bu e-posta
-     arayüzde hiçbir yerde gösterilmez; yalnızca Supabase Auth'a gider. */
+     Zincir: takma ad → `giris` Edge Function'ında sabit e-posta eşlemesi →
+     Supabase parola doğrulaması → kimliği doğrulanmış UUID → profiles satırı
+     → role === "admin". Zincirin herhangi bir halkası kopuyorsa giriş
+     reddedilir. */
   const ADMIN_TAKMA_AD = "sosyolog35";
-  const ADMIN_EPOSTA = "sosyolog.35@sosyolab.local";
-  const AUTH_INTERNAL_DOMAIN = "auth.sosyolab.local";
 
   /* Uygulamada tanınan tek rol kümesi. */
   const ROLLER = ["ogrenci", "teacher", "admin"];
@@ -527,7 +527,7 @@
         if (oturum) {
           BULUT.uid = oturum.user.id;
           const pr = await BULUT.istemci.from("profiles")
-            .select("id, role, display_name, username, class_year, teacher_status, auth_login_email").eq("id", BULUT.uid).maybeSingle();
+            .select("id, role, display_name, username, class_year, teacher_status").eq("id", BULUT.uid).maybeSingle();
           if (!pr.error && pr.data) BULUT.profil = pr.data;
           state.oturum = bulutOturumuKur(yerel);
 
@@ -1018,11 +1018,21 @@
     return t === ADMIN_TAKMA_AD || t === "sosyolog.35";
   };
 
-  function rastgeleKayitEmail() {
-    const ham = (window.crypto && window.crypto.randomUUID)
-      ? window.crypto.randomUUID().replace(/-/g, "")
-      : (Date.now().toString(16) + Math.random().toString(16).slice(2));
-    return "u." + ham.slice(0, 32) + "@" + AUTH_INTERNAL_DOMAIN;
+  /* Edge Function çağrısı. HTTP hata yanıtı (FunctionsHttpError) sunucunun
+     kasıtlı tek tip reddidir; diğer hatalar bağlantı sorunudur. 429 (hız
+     sınırı) ve 503 (geçici) hesap durumundan bağımsızdır; ayrı mesaj alır. */
+  async function sinirCagir(ad, govde) {
+    const r = await BULUT.istemci.functions.invoke(ad, { body: govde });
+    if (!r.error) return { ok: !!(r.data && r.data.ok === true), veri: r.data || null, ag: false, durum: 200 };
+    const http = !!(r.error && r.error.name === "FunctionsHttpError");
+    const durum = http && r.error.context && typeof r.error.context.status === "number" ? r.error.context.status : 0;
+    return { ok: false, veri: null, ag: !http, durum: durum };
+  }
+
+  function sinirMesaji(sonuc) {
+    if (sonuc.durum === 429) return "Çok fazla deneme yapıldı. Birkaç dakika bekleyip tekrar dene.";
+    if (sonuc.durum === 503) return "Hizmet şu an yanıt veremiyor. Biraz sonra tekrar dene.";
+    return null;
   }
 
   async function girisDene() {
@@ -1043,13 +1053,21 @@
     ciz();
     try {
       if (!BULUT.etkin) return hataGoster("Giriş şu an kapalı: sunucu bağlantısı yok.", "kimlik");
-      const email = adminTakmaAdiMi(kimlik) ? ADMIN_EPOSTA : await kullaniciEmailiniBul(kimlik);
-      const r = await BULUT.istemci.auth.signInWithPassword({ email: email, password: sifre });
+      /* İç login kimliği sunucuda çözülür; tarayıcıya yalnız oturum döner.
+         Yanlış kullanıcı adı ve yanlış parola sunucuda da aynı yanıttır. */
+      const g = await sinirCagir("giris", { kullanici_adi: kimlik, parola: sifre });
+      if (g.ag) return hataGoster("Giriş tamamlanamadı. Bağlantını kontrol edip tekrar dene.", "kimlik");
+      if (sinirMesaji(g)) return hataGoster(sinirMesaji(g), "kimlik");
+      const o = g.ok && g.veri && g.veri.oturum;
+      if (!o || typeof o.access_token !== "string" || typeof o.refresh_token !== "string") {
+        return hataGoster("Kullanıcı adı veya parola hatalı.", "sifre");
+      }
+      const r = await BULUT.istemci.auth.setSession({ access_token: o.access_token, refresh_token: o.refresh_token });
       if (r.error || !r.data || !r.data.user) return hataGoster("Kullanıcı adı veya parola hatalı.", "sifre");
 
       BULUT.uid = r.data.user.id;
       const pr = await BULUT.istemci.from("profiles")
-        .select("id, role, display_name, username, class_year, teacher_status, auth_login_email")
+        .select("id, role, display_name, username, class_year, teacher_status")
         .eq("id", BULUT.uid)
         .maybeSingle();
 
@@ -1084,24 +1102,6 @@
     }
   }
 
-  async function kullaniciEmailiniBul(kullaniciAdi) {
-    const r = await BULUT.istemci.rpc("kullanici_email_bul", {
-      p_username: kullaniciAdiNormalize(kullaniciAdi)
-    });
-    if (r.error || typeof r.data !== "string" || !r.data) {
-      return md5FallbackEmail(kullaniciAdi);
-    }
-    return r.data;
-  }
-
-  function md5FallbackEmail(v) {
-    const t = kullaniciAdiNormalize(v) || "missing";
-    let h = 0;
-    for (let i = 0; i < t.length; i++) h = ((h << 5) - h + t.charCodeAt(i)) | 0;
-    const k = (Math.abs(h).toString(16).padStart(8, "0") + "000000000000000000000000").slice(0, 32);
-    return "u." + k + "@" + AUTH_INTERNAL_DOMAIN;
-  }
-
   async function kayitDene() {
     if (state.kayitGonderiliyor) return;
     if (!BULUT.etkin) return hataGoster("Kayıt şu an kapalı: sunucu bağlantısı yok.", "kayit-kullanici");
@@ -1128,34 +1128,24 @@
     ciz();
 
     try {
-      const email = rastgeleKayitEmail();
-      const su = await BULUT.istemci.auth.signUp({ email: email, password: sifre });
-      if (su.error || !su.data || !su.data.user) {
-        return hataGoster("Hesap oluşturulamadı. Kullanıcı adı veya davet kodunu kontrol et.", "kayit-kullanici");
-      }
-
-      if (!su.data.session) {
-        try { await BULUT.istemci.auth.signOut({ scope: "local" }); } catch (e) { /* yok sayılır */ }
-        return hataGoster("Kayıt için e-posta onayı devre dışı olmalı. Yöneticiye bildir.", "kayit-kullanici");
-      }
-
-      BULUT.uid = su.data.user.id;
-      const rr = await BULUT.istemci.rpc("kullanici_kaydi_tamamla", {
-        p_username: kullaniciAdi,
-        p_sifreli_davet_kodu: davetKodu,
-        p_display_name: adSoyad || null
+      /* Auth hesabı, iç kimlik ve davet tüketimi sunucuda tek akıştır;
+         tarayıcıda oturum açılmaz. Geçersiz davet ve alınmış kullanıcı adı
+         aynı yanıtı verir. */
+      const k = await sinirCagir("kayit", {
+        kullanici_adi: kullaniciAdi,
+        parola: sifre,
+        davet_kodu: davetKodu,
+        ad_soyad: adSoyad || null
       });
-
-      if (rr.error || !rr.data || rr.data.ok !== true) {
-        await bulutCikis();
-        oturumuTemizle();
-        return hataGoster("Kayıt tamamlanamadı. Davet kodu geçersiz olabilir.", "kayit-davet");
+      if (k.ag) return hataGoster("Kayıt tamamlanamadı. Bağlantını kontrol edip tekrar dene.", "kayit-kullanici");
+      if (sinirMesaji(k)) return hataGoster(sinirMesaji(k), "kayit-kullanici");
+      if (!k.ok) {
+        return hataGoster("Kayıt tamamlanamadı. Kullanıcı adı veya davet kodunu kontrol et.", "kayit-davet");
       }
 
-      await bulutCikis();
       oturumuTemizle();
       state.authSekme = "giris";
-      state.kayitMesaj = rr.data.audience_type === "teacher"
+      state.kayitMesaj = k.veri.audience_type === "teacher"
         ? "Öğretim elemanı başvurun alındı. Yönetici onayından sonra öğretim elemanı özellikleri açılacaktır."
         : "Hesabın oluşturuldu. Giriş yapabilirsin.";
       ciz();

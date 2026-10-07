@@ -1,12 +1,15 @@
 -- Disposable PostgreSQL only. Minimal Supabase substitutes, NOT platform tests.
 create role anon nologin;
 create role authenticated nologin;
+-- Edge Function'ın kullandığı sunucu rolü (Supabase: service_role, BYPASSRLS).
+create role service_role nologin bypassrls;
 create schema auth;
 create schema storage;
 create schema extensions;
 create schema runtime_test;
 create table auth.users (
-  id uuid primary key, email text, is_anonymous boolean default false,
+  id uuid primary key, email text, is_anonymous boolean default false, encrypted_password text,
+  created_at timestamptz default now(),
   raw_app_meta_data jsonb default '{}', raw_user_meta_data jsonb default '{}'
 );
 create function auth.jwt() returns jsonb language sql stable as $$
@@ -27,7 +30,7 @@ create table storage.objects (
 );
 alter table storage.objects enable row level security;
 alter table storage.buckets enable row level security;
-grant usage on schema public,auth,storage,runtime_test to anon,authenticated;
+grant usage on schema public,auth,storage,runtime_test to anon,authenticated,service_role;
 grant select,insert,update,delete on storage.objects,storage.buckets to anon,authenticated;
 revoke create on schema public from public,anon,authenticated;
 
@@ -57,7 +60,12 @@ $$;
 create function runtime_test.identity(n integer) returns uuid language sql immutable as $$
   select ('00000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid;
 $$;
+-- Canonical internal login identity (u.<UUIDv4 hex>), as the app generates it.
+create function runtime_test.email(n integer) returns text language sql immutable as $$
+  select 'u.'||substr(h,1,12)||'4'||substr(h,14,3)||'8'||substr(h,18,15)||'@auth.sosyolab.local'
+    from (select md5('synthetic-login-'||n) h) s;
+$$;
 create function runtime_test.login(n integer) returns void language sql as $$
   select set_config('request.jwt.claims',jsonb_build_object(
-    'sub',runtime_test.identity(n),'email','u.test'||n||'@auth.sosyolab.local')::text,false)::void;
+    'sub',runtime_test.identity(n),'email',runtime_test.email(n))::text,false)::void;
 $$;

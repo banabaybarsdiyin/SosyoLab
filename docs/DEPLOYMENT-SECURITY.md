@@ -136,15 +136,17 @@ Kural 1 — kimlik doğrulama
 
 **Önemli sınır:** giriş ve davet doğrulama istekleri tarayıcıdan doğrudan
 `*.supabase.co` adresine gider; Cloudflare'in `sosyolab.tr` kuralları bu
-istekleri **görmez**. Gerçek kimlik doğrulama hız sınırı için:
+istekleri **görmez**. Bu yüzden 006 ile birincil hız sınırı Edge Function'ın
+içindedir (`giris`/`kayit` → `public.istek_siniri_tuket`, atomik DB sayacı;
+bölüm 11 ve "Hız sınırı (F-01)"). Auth tarafında ek olarak:
 
 - Supabase → Authentication → Rate Limits: `Sign in / Sign up`, `Anonymous
   sign-ins` ve `Token refresh` limitlerini bölümün gerçek kullanıcı sayısına
   göre düşürün (varsayılanlar bir bölüm için fazla cömerttir).
-- Supabase → Authentication → Attack Protection: **Captcha** (hCaptcha /
-  Turnstile) açın. Açarsanız istemcide `signInWithPassword` /
-  `signInAnonymously` çağrılarına `options.captchaToken` eklenmesi gerekir —
-  bu bir kod değişikliğidir, bu depoda henüz yoktur.
+- Supabase → Authentication → Attack Protection: **Captcha AÇILMAZ** (006
+  mimarisinde parola isteği Edge Function'dan gider; captcha token akışı bu
+  depoda yoktur ve açılırsa tüm girişler reddedilir). İleride eklenirse
+  token tarayıcıdan `giris`'e, oradan Auth'a taşınmalıdır.
 - Uzun vadeli çözüm: kimlik doğrulamayı kendi alan adınız altındaki bir
   Cloudflare Worker üzerinden vekillemek. Bu aynı zamanda HttpOnly çerez
   modelini de mümkün kılar (bkz. bölüm 3).
@@ -373,12 +375,38 @@ Dashboard'dan elle doğrulanacaklar (depo kodundan görülemez):
 - [ ] **Redirect URLs**: yalnızca `https://arsiv.sosyolab.tr/**`.
       Joker (`*`) ya da `http://` girdisi bırakmayın — açık yönlendirme ve
       jeton sızıntısına yol açar.
-- [ ] **Authentication → Providers → Anonymous sign-ins**: açık olmalı
-      (öğrenci gönderimleri buna dayanıyor). Göç 001 uygulandıktan sonra
-      anonim kullanıcı davet doğrulamadan hiçbir şey yazamaz; göç 003'ten
-      sonra **okuyamaz da**. 003 uygulanmadıysa bu ayar açıkken kodu
-      bilmeyen biri de onaylı arşivin tamamını okuyabilir.
-- [ ] **Authentication → Rate Limits**: varsayılanlar düşürülsün (bkz. 1.5).
+- [ ] **Authentication → Sign In / Providers → "Allow new users to sign up"**:
+      **KAPALI** (006 ve sonrası). Kayıt yalnız `kayit` Edge Function'ı
+      üzerinden Admin API ile yapılır; public signup açık kalırsa herkes
+      Auth hesabı açabilir ve confirmation kapalıyken `user_already_exists`
+      farkı oluşur (bkz. bölüm 11, F-05).
+- [ ] **Authentication → Providers → Anonymous sign-ins**: **KAPALI** (006
+      uygulaması anonim oturum kullanmaz; açık kalırsa kimliksiz Auth hesabı
+      üretilebilir).
+- [ ] **Authentication → Providers → Email → Confirm email**: **AÇIK**
+      bırakılması önerilir (varsayılan). Edge Function kullanıcıyı
+      `email_confirm: true` ile oluşturduğu için kayıt bundan etkilenmez;
+      signup yanlışlıkla açılırsa mevcut kullanıcı için yanıt maskelenir.
+      Magic link/OTP, telefon ve OAuth provider'ları kapalı olmalı.
+- [ ] **Authentication → Password policy**: istemci/sunucu minimumu (8
+      karakter) ile aynı ya da daha gevşek olmalı; daha sıkı politika
+      kayıtta tek tip `kayit_basarisiz` döndürür.
+- [ ] **Edge Functions → `giris`, `kayit`**: `supabase/config.toml` ile
+      (`verify_jwt = false`) deploy edilmiş, secrets ayarlı (bölüm 11 adım 6).
+      Sunucu anahtarları (secret key / legacy service_role) yalnız Edge
+      Function ortamında bulunur; tarayıcıya, repoya, CI'ya girmez.
+- [ ] **Project Settings → API Keys → Secret keys**: en az bir **secret key**
+      (`sb_secret_…`, adı `default`) mevcut. Edge ortamına
+      `SUPABASE_SECRET_KEYS` olarak platform enjekte eder. `Sb-Forwarded-For`
+      YALNIZ secret key ile çalışır; publishable ve legacy anon/service_role
+      anahtarlar desteklenmez (Supabase "Rate limits" belgesi).
+- [ ] **Authentication → Rate Limits → IP Address Forwarding**: **AÇIK**.
+      Kapalıysa Auth, `giris` isteklerini fonksiyonun çıkış IP'sine yazar ve
+      sign-in limiti (varsayılan 5 dakikada 30) tüm kullanıcılar için ortak
+      tükenir (F-01).
+- [ ] **Authentication → Rate Limits → Sign-ups and sign-ins**: kampüs
+      NAT'ı arkasında aynı IP'den aynı anda giriş yapacak öğrenci sayısını
+      karşılayacak değer (Edge IP limiti `RL_GIRIS_IP` ile uyumlu).
 - [ ] **Database → Extensions**: `pgcrypto` etkin (göç 001 için gerekli).
 - [ ] **Storage → materyaller kovası**: `public = false`. Dashboard'dan
       görsel olarak doğrulayın.
@@ -455,6 +483,12 @@ Bu prosedür mevcut 005 production şeması içindir. Yeni boş kurulumda önce
 Uygulanmış eski migration dosyaları tekrar çalıştırılmaz. `inventory.sql`
 yalnız POST-006 sözleşmesidir; eski PRE/POST-003 gate olarak kullanılmaz.
 
+006 ile giriş ve kayıt **server-side Auth sınırına** taşınır: Edge Function
+`giris` (kullanıcı adı + parola → oturum) ve `kayit` (davetli kayıt). Public
+Auth signup ve anonymous sign-in kapatılır. Bu üç parça (DB 006, Edge
+Functions, Auth ayarları) tek bakım penceresinde ve frontend'den ÖNCE
+tamamlanır.
+
 1. DB backup/snapshot al; Auth geri kazanım ve bakım penceresini planla.
 2. **PRE-006 read-only inventory:** `supabase/pre_006_inventory.sql` çalıştır.
    Yalnız 005 ve önceki kolonlara başvurur. Toplam profil, admin/teacher/user
@@ -469,54 +503,233 @@ yalnız POST-006 sözleşmesidir; eski PRE/POST-003 gate olarak kullanılmaz.
    sos401=0 olsa da 006 cleanup savunması uygulanır.
 4. Gerçek blocker veya kararsız legacy geçiş varsa **DUR**. Auth/provider
    ayarları ve mevcut uygulama için bakım penceresi doğrulansın: 006 eski
-   `davet_kullan` istemci erişimini kapatır.
-5. `supabase/migrations/006_self_registration_invites.sql` uygula.
-6. Kararlaştırılmış **explicit POST-006 legacy backfill** uygula. 006 sadece
+   `davet_kullan` istemci erişimini kapatır; eski frontend kayıt/giriş
+   akışları 006 sonrası çalışmaz.
+5. `supabase/migrations/006_self_registration_invites.sql` uygula. Ön koşul
+   olarak `service_role` rolü ve pgcrypto (`crypt`, `gen_salt`, `hmac`,
+   `gen_random_bytes`) bulunmalıdır; yoksa migration durur.
+6. **Edge Functions deploy** (Supabase CLI, güvenli operatör ortamı):
+
+   ```bash
+   # verify_jwt=false supabase/config.toml'dan gelir (bayrağa bağlı değil).
+   supabase functions deploy giris
+   supabase functions deploy kayit
+   supabase secrets set ALLOWED_ORIGINS=https://arsiv.sosyolab.tr
+   supabase secrets set ADMIN_LOGIN_EMAIL=<yönetici Auth email adresi>
+   # İsteğe bağlı (varsayılanlar 1000 / 2500 ms):
+   supabase secrets set LOGIN_FLOOR_MS=1000 REGISTER_FLOOR_MS=2500
+   # İsteğe bağlı hız sınırları "limit/pencere_saniye" (varsayılanlar):
+   #   RL_GIRIS_IP_AD=10/900  RL_GIRIS_IP=200/900  RL_GIRIS_AD=50/3600  RL_KAYIT_IP=60/3600
+   # CLIENT_IP_HEADER yalnız LIVE-VALIDATION G7 sonucu değiştirilir
+   # (varsayılan x-forwarded-for, ilk değer).
+   ```
+
+   Platform enjekte eder (elle yazılmaz): `SUPABASE_URL`,
+   `SUPABASE_SECRET_KEYS` (secret key JSON'u; `default` adı kullanılır,
+   farklıysa `AUTH_SECRET_KEY_NAME`), legacy `SUPABASE_ANON_KEY` /
+   `SUPABASE_SERVICE_ROLE_KEY`. Repoya, belgeye, CI'ya veya tarayıcıya hiçbir
+   gerçek anahtar girmez. **`AUTH_IP_FORWARDING` varsayılanı `required`:**
+   secret key yoksa fonksiyon başlamaz (fail-closed); Auth'un fonksiyon
+   IP'sinde birleşen limitine sessizce dönülmez. `AUTH_IP_FORWARDING=disabled`
+   yalnız yazılı operatör kararıyla ve residual risk kabulüyle kullanılır.
+   Sunucu RPC'leri secret key varsa onunla, yoksa legacy service_role ile
+   yapılır. verify_jwt=false gerekir: fonksiyonlar oturum öncesi çağrılır ve
+   publishable key JWT değildir; yetki sınırı fonksiyonun kendisi (Origin,
+   hız sınırı) + service_role-only RPC'lerdir. **`supabase config push`
+   kullanılmaz** (config.toml yalnız fonksiyon ayarı içerir).
+7. **Auth ayarları** (bölüm 8): "Allow new users to sign up" **KAPALI**,
+   Anonymous sign-ins **KAPALI**, magic link/OTP/telefon/OAuth kapalı, Confirm
+   email açık (önerilen), password policy ≤ 8 karakter minimum, **IP Address
+   Forwarding AÇIK**, Captcha kapalı. Değerler LIVE-VALIDATION G1'de
+   Management API ile salt-okunur doğrulanır.
+8. Kararlaştırılmış **explicit POST-006 legacy backfill** uygula. 006 sadece
    eski teacher durumunu approved yapar; username/Auth email migration yapmaz.
-   Username canonical/benzersiz/rezerve olmayan, `auth_login_email` internal
-   sözleşmesine uygun ve Auth ile aynı olmalıdır. Adminin mevcut takma ad
-   girişi ayrı sözleşmedir; admin username eksikliği otomatik blocker değildir.
-7. **POST-006 inventory:** `psql <baglanti> -v ON_ERROR_STOP=1 -v mod=POST
+   Username canonical/benzersiz/rezerve olmayan, `auth_login_email` canonical
+   (`u.<UUIDv4 hex>@auth.sosyolab.local`) ve Auth email ile **aynı** olmalıdır
+   (Auth tarafı Admin API ile değiştirilir). Admin, `ADMIN_LOGIN_EMAIL` ile
+   eşlenen takma ad girişini kullanır; admin username eksikliği blocker değildir.
+9. **POST-006 inventory:** `psql <baglanti> -v ON_ERROR_STOP=1 -v mod=POST
    -f supabase/inventory.sql`. A–G/G2/K/L **0 satır**; H/I/J bilgi amaçlıdır.
-   Profiles direct INSERT policy ve anon/authenticated INSERT privilege
-   **olmamalı**; SELECT/UPDATE, membership, ACL ve teacher korumaları bulunmalı.
+   `kullanici_email_bul`, `kayit_on_kontrol`, `kullanici_kaydi_tamamla`
+   yalnız service_role EXECUTE'a sahip olmalı (anon/authenticated/PUBLIC yok).
    Ham policy/function gövdelerini depo ile karşılaştır; katalog alt dize
    kontrolü gerçek runtime veya tam gövde eşitliği kanıtı değildir.
-8. SQL runtime/contract verification yap. Önce yerelde
-   `pwsh -NoProfile -File scripts/runtime_006_security_test.ps1`: T01–T25
-   gerçek SQL/RLS olarak PASS olmalı. Gerçek Supabase Auth/Storage/HTTP
-   davranışı için [LIVE-VALIDATION.md](LIVE-VALIDATION.md) geçerlidir.
-9. Registration smoke: DB 006 üzerinde yeni frontend adayını yerel/staging
-   ortamda doğrula; yanlış kod membership vermez, student user/class_year olur.
-10. Teacher pending smoke: user/pending, başvuru ekranı, upload/member-write
+10. SQL runtime/contract verification: önce yerelde
+    `pwsh -NoProfile -File scripts/runtime_006_security_test.ps1` (T01–T53 +
+    teacher contract PASS) ve `node scripts/regression_edge_config_test.js`.
+    Ardından [LIVE-VALIDATION.md](LIVE-VALIDATION.md) "Server-side Auth
+    sınırı" **G1–G10 PASS/FAIL kapıları** — önce staging projede, sonra
+    production'da frontend deploy'dan ÖNCE. Tek bir FAIL frontend deploy'u
+    durdurur.
+11. Registration smoke (`kayit` üzerinden): yanlış kod membership ve Auth
+    hesabı vermez; student user/class_year olur; Auth Users listesinde
+    profilsiz yeni hesap kalmaz.
+12. Teacher pending smoke: user/pending, başvuru ekranı, upload/member-write
     kapalı; mevcut okuma davranışı korunur.
-11. Admin approval smoke: approve → teacher/approved → ders ataması → yalnız
+13. Admin approval smoke: approve → teacher/approved → ders ataması → yalnız
     atanmış derste direct publish. Reject → rejected ve upload kapalı.
-12. **Frontend deploy. Frontend DB 006'dan önce deploy edilmez.**
-    `.github/workflows/deploy.yml` main push ile yayın yapar; main push bir
-    dağıtım işlemidir. Bu remediation turunda push/deploy yapılmaz.
-13. Yayın sonrası `scripts/smoke.sh` çalıştır.
-14. **4 öğrenci sınıfı + 1 teacher production invite kodunu** yalnız
+14. **Frontend deploy. Frontend; DB 006, Edge Functions ve Auth ayarlarından
+    önce deploy edilmez.** `.github/workflows/deploy.yml` main push ile yayın
+    yapar; main push bir dağıtım işlemidir. Bu remediation turunda push/deploy
+    yapılmaz.
+15. Yayın sonrası `scripts/smoke.sh` çalıştır.
+16. **4 öğrenci sınıfı + 1 teacher production invite kodunu** yalnız
     `admin_davet_kodu_olustur` RPC/helper ile oluştur (EK B). Bunlar smoke
     fixture kodları değil, operatörün güvenli ortamda ürettiği gerçek kodlardır.
-15. Final UI verification yap; admin/student/teacher giriş, pending/rejected,
+    006 migration'ı arama özeti (`kod_arama_ozeti`) olmayan aktif
+    student/teacher kodlarını pasife alır (NOTICE); hash'ten düz metin
+    üretilemediği için dönüştürülmez — bunlar için de yeni kod üretilir.
+17. Final UI verification yap; admin/student/teacher giriş, pending/rejected,
     dosya erişimi ve çıkış/yenileme davranışını doğrula.
 
 Üretim smoke hesapları ve geçici kodlar ayrıca operatörce yönetilir; yerel
-harness production'a bağlanmaz. Başarısız gate atlanmaz. Geri dönüş için
-bakım penceresi ve snapshot/forward fix kullanılır; eski migration/anon
-kayıt modeline kontrolsüz dönüş yapılmaz.
+harness production'a bağlanmaz. Başarısız gate atlanmaz.
 
-### Residual risk: username enumeration (P2, blocker değil)
+**Geri dönüş sırası.** (a) Frontend deploy edilmeden bir adım başarısızsa:
+Edge Function'lar forward-fix edilir; frontend eski hâlde kalır, bakım
+penceresi sürer. (b) Frontend sonrası sorun: önce bakım moduna al, frontend'i
+önceki commit'e döndür, Edge Function'ları forward-fix et veya snapshot'tan
+DB'yi geri yükle (bakım penceresinde, Auth ile tutarlı). **Public signup veya
+anonymous sign-in geri dönüş aracı olarak yeniden açılmaz** — açılması F-05
+oracle'ını ve kimliksiz Auth hesabı üretimini geri getirir. `login_pepper`
+geri dönüşte de değiştirilmez. Eski migration/anon kayıt modeline kontrolsüz
+dönüş yapılmaz.
 
-`kullanici_email_bul` anon'a yalnız internal `@auth.sosyolab.local` adresini
-verir; kişisel Auth email dönmez. Bilinmeyen username için deterministik
-fallback, bilinen için rastgele internal email döndüğü için bu iki sonuç
-karşılaştırılarak username varlığı tahmin edilebilir. UI yanlış username
-ve yanlış parola için aynı `Kullanıcı adı veya parola hatalı.` mesajını verir;
-bu RPC farkını ortadan kaldırmaz. Bu tur mimari yeniden yazılmaz; HMAC/server
-secret tarayıcıya veya SQL kaynağına gömülmez. Platform rate limit ve izleme
-operasyonel kontrol olarak ayrıca doğrulanır.
+**Profilsiz Auth hesabı temizliği.** Kayıt telafisi (Admin API silme)
+başarısız olursa, kesinleştirme RPC'si hata verirse veya fonksiyon yarıda
+kesilirse profilsiz, erişimsiz ve
+kimliği hiç istemciye dönmemiş bir Auth hesabı kalabilir (`kayit_telafi_basarisiz`
+/ `kayit_durumu_belirsiz` logları). Operatör düzenli olarak listeler ve
+Admin API ile siler (SQL'den `auth.users` silinmez):
+
+```sql
+select u.id, u.created_at
+  from auth.users u
+  left join public.profiles p on p.id = u.id
+ where p.id is null
+   and u.email like 'u.%@auth.sosyolab.local'
+   and u.created_at < now() - interval '1 hour';
+```
+
+### Username enumeration (F-05): server-side Auth sınırı
+
+**Kök neden (önceki tasarım).** Supabase Auth parola girişi yalnız email
+kabul eder; iç kimlik rastgele olduğu için tarayıcı önce RPC ile
+`kullanıcı adı → email` çözüyordu. Pepper'lı fallback RPC yanıtını eşitlese
+de tarayıcı bu email'i öğreniyordu; confirmation kapalıyken Auth `signUp`
+kayıtlı email için `user_already_exists` döndürdüğünden RPC + signUp
+birleşimi hesap varlığını yeniden ortaya çıkarıyordu. Tarayıcı iç kimliği
+bildiği ve Auth uç noktalarına doğrudan erişebildiği sürece bu kapatılamaz.
+
+**Güvenlik sözleşmesi (doğru kapsam):**
+
+> Oturum açmamış / kimlik doğrulaması öncesi istemci, RPC, Edge Function,
+> Supabase Auth uç noktası veya bunların birleşimiyle bir kullanıcı adının ya
+> da başka bir hesabın iç Auth kimliğinin (`u.<UUIDv4 hex>@auth.sosyolab.local`)
+> varlığını güvenilir biçimde öğrenemez.
+
+Kapsam dışı (bilinçli): giriş yapmış kullanıcı **kendi** iç email'ini kendi
+access token'ındaki `email` claim'inde ve supabase-js oturum nesnesinde
+görür; bu Supabase Auth'un doğasıdır ve yalnız kendi parolasını bilen
+kişiye kendi kimliğini verir. Uygulama bu değeri hiçbir yerde istemez ve
+`profiles.auth_login_email` istemci SELECT'ine kapalıdır (F-04; admin dahil
+— kolon yetkisi authenticated rolünde yoktur).
+
+**006 mimarisi:**
+
+- `kullanici_email_bul`, `kayit_on_kontrol`, `kullanici_kaydi_tamamla`,
+  `kayit_sonucunu_kesinlestir`, `istek_siniri_tuket` yalnız **service_role**
+  (Edge Function) tarafından çağrılabilir. Giriş/kayıt yanıtlarında email
+  yoktur. Kimlikler 122-bit rastgele olduğu için tahmin edilemez;
+  saldırganın Auth `signup`/`token`/`otp` uç noktalarına soracağı bir kimliği
+  yoktur.
+- **Public signup kapalı:** `/auth/v1/signup` her email için aynı
+  `signup_disabled` hatasını, kullanıcı aramasından önce döndürür. Auth
+  kullanıcısını yalnız `kayit`, Admin API ile, geçerli davet ön kontrolünden
+  sonra oluşturur.
+- **`giris`:** kullanıcı adını canonicalize eder; önce hız sınırı (aşağıda),
+  sonra iç kimliği server-side çözer (olmayan ad için de hiçbir hesaba ait
+  olmayan canonical kimlik), Auth parola doğrulamasını her istekte aynen
+  yaptırır. Başarısızlık her durumda aynı
+  `401 {"ok":false,"hata":"giris_basarisiz"}` (aynı başlıklar); Auth'un hata
+  kodu yansıtılmaz. Tüm yanıtlar `LOGIN_FLOOR_MS` tabanına kadar bekletilir
+  (taban aşılırsa `giris_taban_asildi` logu — tabanı yükseltin). Başarıda
+  yalnız oturum token'ları döner.
+- **`kayit`:** (0) IP hız sınırı. (1) `kayit_on_kontrol` — geçersiz/dolmuş/
+  tükenmiş kod veya alınmış ad için Auth kullanıcısı hiç oluşturulmaz; kod
+  geçersizken ad durumu sonucu değiştirmez. (2) Admin API ile rastgele
+  canonical kimlik, `email_confirm: true`. (3) `kullanici_kaydi_tamamla` tek
+  transaction'da davet tüketimi + damga + profil. (4) Sonuç bilinmiyorsa
+  `kayit_sonucunu_kesinlestir`: tamamla ile **aynı advisory lock**'u alır,
+  süren bir tamamla bitene kadar bekler; profil varsa `tamam` (yanıt
+  kaybolmuş, başarı), yoksa iptal damgası (`sosyolab_private.kayit_iptalleri`)
+  yazar ve `iptal` döner — bundan sonra gecikmiş bir tamamla bu kullanıcı
+  için reddedilir. (5) Yalnız `iptal` sonrası Auth kullanıcısı Admin API ile
+  silinir; kesinleştirme hata verirse silme yapılmaz ve temizlik sorgusu
+  devreye girer. Böylece "commit sürerken profil görünmedi → sil → cascade +
+  davet kotası bir eksik" penceresi (F-06) kapanır.
+- Pepper'lı canonical fallback ve canonical CHECK korunur. `login_pepper`
+  **rotate edilmez**.
+
+### Hız sınırı (F-01)
+
+- **Katman A — Edge Function + DB sayacı:** `public.istek_siniri_tuket`
+  (`sosyolab_private.istek_sayaclari`), sabit pencere, atomik
+  `INSERT … ON CONFLICT DO UPDATE` sayacı. Kovalar sırayla değerlendirilir ve
+  ilk aşılan kovada durulur (reddedilen istek sonraki kovaları artırmaz).
+  - `giris`: (istemci IP, kullanıcı adı) `RL_GIRIS_IP_AD` → (istemci IP)
+    `RL_GIRIS_IP` → (kullanıcı adı, tüm IP'ler) `RL_GIRIS_AD`.
+  - `kayit`: (istemci IP) `RL_KAYIT_IP`, ön kontrol ve Admin API'den önce.
+  - Karar hesap varlığına hiç bakmaz: var olan ve olmayan ad aynı sayaç
+    dizisini ve aynı `429 {"ok":false,"hata":"cok_fazla_istek"}` yanıtını
+    görür (başarılı giriş de sayılır; sıfırlama yok → doğru parola 429'da
+    ayırt edilemez). Limiter hatası → `503 gecici_hata`, Auth'a gidilmez
+    (fail-closed).
+  - Ham IP/kullanıcı adı saklanmaz: anahtar pepper'lı HMAC'tır; süresi dolan
+    pencereler her çağrıda partiyle silinir (TTL).
+  - İstemci IP'si yalnız `CLIENT_IP_HEADER` başlığından (varsayılan
+    `x-forwarded-for`, ilk değer) okunur; diğer başlıklar yok sayılır.
+    Geçersiz/eksik değer tek ortak `bilinmeyen` kovasına düşer (sınır
+    kalkmaz). IPv6 /64 önekiyle, IPv4-mapped IPv6 IPv4 olarak sayılır.
+    Gateway'in bu başlığı istemci değeriyle ezdiği LIVE-VALIDATION G7'de
+    kanıtlanır.
+- **Katman B — Auth IP atfı:** parola isteği `Sb-Forwarded-For: <istemci IP>`
+  ve **secret key** ile gönderilir (publishable / legacy anahtarlarla
+  desteklenmez; Dashboard'da IP Address Forwarding açık olmalı). Böylece
+  Auth'un IP limiti fonksiyon çıkış IP'sinde birleşmez ve tek saldırgan tüm
+  kullanıcıları kilitleyemez. Secret key yoksa fonksiyon başlamaz
+  (`AUTH_IP_FORWARDING=required`, varsayılan).
+
+### Davet araması (F-02)
+
+`kod_arama_ozeti = HMAC-SHA256(sunucu pepper'ı, 'davet:v1:' || UPPER(kod))`,
+benzersiz kısmi indeks. Ön kontrol ve tüketim tek HMAC + indeksli eşitlik
+yapar; aktif kod sayısından bağımsızdır ve istek başına bcrypt çalışmaz
+(T52: 0 `crypt()` çağrısı). Pepper `sosyolab_private.sunucu_pepperlari`'nda,
+istemcilere ve doğrudan service_role'e kapalıdır; özet tarayıcıda
+hesaplanamaz. Düz metin saklanmaz/loglanmaz; bcrypt `kod_ozeti` 001
+uyumluluğu için yazılmaya devam eder. Aktif student/teacher kodunda arama
+özeti CHECK ile zorunludur.
+
+**Residual:**
+
+- **Geçerli davet kodu sahibi** kayıt denemesiyle bir kullanıcı adının
+  alınmış olduğunu öğrenebilir (benzersiz, kullanıcı seçimli ad ile kayıt
+  doğası gereği). Davetsiz istemci için yanıt aynıdır. Davet kodları 128-bit,
+  süreli ve kotalıdır; başarısız denemeler davet tüketmez; denemeler IP
+  başına sınırlıdır.
+- **Hedefli hesap kilidi:** `RL_GIRIS_AD` (varsayılan saatte 50) farklı
+  IP'lerden bir kullanıcı adına deneme yapan saldırganın o hesabı pencere
+  boyunca kilitlemesine izin verir (dağıtık parola denemesine karşı bilinçli
+  ödünleşim; tek IP en çok `RL_GIRIS_IP_AD` kadar katkı yapabilir).
+- **Kampüs NAT'ı:** aynı IP arkasındaki kullanıcılar `RL_GIRIS_IP` ve Auth
+  sign-in limitini paylaşır; değerler bölüm sayısına göre ayarlanır.
+- **İstemci IP başlığı:** güvenilirliği hosted gateway davranışına bağlıdır
+  (G7). Başlık sahtelenebilir çıkarsa (IP+ad) kovası atlanabilir; (ad)
+  kovası yine de hesap başına denemeyi sınırlar. G7 FAIL ise release durur.
+- GoTrue davranışı (signup kapalıyken tek tip red, bcrypt yalnız var olan
+  hesapta, `Sb-Forwarded-For`) yerelde **model/adaptör sözleşmesi** ile test
+  edildi; hosted kanıt değildir, LIVE-VALIDATION G1–G10 ile doğrulanır.
 
 ---
 

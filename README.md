@@ -57,9 +57,13 @@ Giriş ekranı iki sekmelidir: `Giriş Yap` ve `Kayıt Ol`.
    Davet kodu türüne göre hesap sınıflandırılır:
    - `student` daveti: hesap `user` olarak açılır, `class_year` atanır.
    - `teacher` daveti: hesap `user` olarak açılır, `teacher_status = pending` olur.
-- **Giriş Yap** — kullanıcı adı + parola ile yapılır. İstemci, kullanıcı adını
-   `public.kullanici_email_bul()` ile iç kimliğe çözümler; parola doğrulaması
-   Supabase Auth'ta yapılır.
+- **Giriş Yap** — kullanıcı adı + parola ile yapılır. İstek `giris` Edge
+   Function'ına gider; kullanıcı adı iç kimliğe sunucuda çözülür, parola
+   doğrulaması Supabase Auth'ta yapılır ve tarayıcıya yalnız oturum döner.
+   Tarayıcı iç login kimliğini hiç görmez.
+- **Kayıt** de `kayit` Edge Function'ı üzerinden yapılır; public Auth signup
+   kapalıdır, Auth hesabı yalnız geçerli davet ön kontrolünden sonra sunucuda
+   oluşturulur.
 - **Yönetici** — `sosyolog35` kullanıcı adı + parola ile giriş yapar.
    Ek olarak gönderi inceleme ve öğretim elemanı başvurusu onay/reddi yapar.
 
@@ -194,10 +198,11 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    yapıştırıp çalıştır.
 
 3. **E-posta ile kayıt/girişi hazırla** — Authentication → Providers → Email.
-   `signUp` akışının çalışması için Email provider açık olmalı.
-   Uygulama kendi iç alan adı (`@auth.sosyolab.local`) ile kayıt açtığı için
-   üretimde e-posta doğrulama gereksinimi kapatılmalı (aksi durumda
-   `kullanici_kaydi_tamamla` akışı tamamlanamaz).
+   Email provider açık olmalı (parola girişi için). **"Allow new users to
+   sign up" KAPALI** ve **Anonymous sign-ins KAPALI** olmalı: kayıtlar `kayit`
+   Edge Function'ında Admin API ile `email_confirm: true` oluşturulur, bu
+   yüzden "Confirm email" açık kalabilir (önerilen). Edge Function deploy ve
+   secrets: [DEPLOYMENT-SECURITY.md](docs/DEPLOYMENT-SECURITY.md) bölüm 11.
 
 4. **Yönetici hesabı aç** — Authentication → Users → Add user:
    - E-posta: `sosyolog.35@sosyolab.local`
@@ -272,11 +277,24 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    formatında üretilir; tabloda hash olduğu için CHECK entropiyi kanıtlayamaz.
    `davet_kullan` istemci erişimi 006 ile kapanır. Pending/rejected teacher
    okuma davranışını korur; materyal/storage upload RLS ile kapalıdır.
-   Username enumeration P2 residual risktir, release blocker değildir;
-   kişisel email anon'a dönmez, yanlış username/parola UI mesajı aynıdır.
+   Username enumeration (F-05) server-side Auth sınırıyla kapatılır.
+   Sözleşme: oturum açmamış istemci hiçbir hesabın varlığını veya iç Auth
+   kimliğini öğrenemez; giriş/kayıt yanıtlarında email yoktur, public signup
+   kapalıdır, başarısızlıklar tek tip ve süre tabanlıdır. (Giriş yapan
+   kullanıcı yalnız KENDİ iç email'ini kendi JWT'sinde görür; Supabase Auth
+   doğası gereğidir. `profiles.auth_login_email` istemci SELECT'ine kapalıdır.)
+   `giris`/`kayit` istemci IP'si + kullanıcı adı boyutlarında atomik DB hız
+   sınırı uygular ve Auth'a gerçek IP'yi `Sb-Forwarded-For` ile iletir
+   (secret key + Dashboard "IP Address Forwarding" gerekir). Davet araması
+   pepper'lı HMAC + indeksle yapılır (istek başına bcrypt yok).
+   `supabase/config.toml` `verify_jwt=false`'u sabitler. Ayrıntı:
+   DEPLOYMENT-SECURITY bölüm 8 ve 11.
 
    Yerel runtime kanıtı: `pwsh -NoProfile -File scripts/runtime_006_security_test.ps1`
-   (`postgres:16` yerelde bulunmalı; ağ kapalı, geçici konteyner, T01–T25).
+   (`postgres:16` yerelde bulunmalı; ağ kapalı, geçici konteyner, T01–T53 +
+   teacher SQL contract T-01..T-17; T32–T40 Edge Function sınırı, T41–T51
+   hız sınırı, T52 davet araması, T53 kayıt kesinleştirme). Statik deploy
+   sözleşmesi: `node scripts/regression_edge_config_test.js`.
    Release sırası: [DEPLOYMENT-SECURITY.md](docs/DEPLOYMENT-SECURITY.md) bölüm 11.
 
 7. **Barındırma güvenliği** — GitHub Pages HTTP başlığı ayarlayamaz.

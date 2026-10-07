@@ -1,0 +1,24 @@
+# SosyoLab — Supabase CLI yapılandırması (YALNIZ Edge Function deploy ayarları).
+#
+# project_id CLI için zorunlu yerel bir addır; uzak proje ref'i DEĞİLDİR.
+# Bu dosya hiçbir secret içermez.
+#
+# `giris` ve `kayit` oturum açılmadan önce çağrılır ve tarayıcı publishable key
+# (JWT değil) gönderir; gateway JWT doğrulaması açık kalırsa her iki fonksiyon
+# 401 döner (fail-closed kesinti). Yetki sınırı fonksiyonun kendisidir:
+# Origin allowlist, atomik hız sınırı ve yalnız service_role'e açık RPC'ler.
+# verify_jwt burada sabitlenir; deploy artık --no-verify-jwt bayrağına bağlı
+# değildir (scripts/regression_edge_config_test.js bunu denetler).
+#
+# UYARI: `supabase config push` bu dosyayla ÇALIŞTIRILMAZ. Dosyada yer almayan
+# [auth] vb. bölümler CLI varsayılanlarıyla doldurulup uzak projeye
+# itilebilir (ör. signup/site_url). Auth ayarları yalnız Dashboard/Management
+# API ile, DEPLOYMENT-SECURITY bölüm 8'e göre yönetilir.
+
+project_id = "sosyolab"
+
+[functions.giris]
+verify_jwt = false
+
+[functions.kayit]
+verify_jwt = false

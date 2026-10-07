@@ -55,6 +55,28 @@ function inventory() {
   assert.notStrictEqual(wrongMode.status,0,'POST inventory must reject PRE mode');
   console.log('PASS POST-006 inventory (A..G/G2/K/L zero findings; PRE rejected)');
 }
+function contract() {
+  const file='supabase/regression_teacher_contract.sql';
+  const ok=sqlFile(file);
+  const ids=[...ok.stderr.matchAll(/PASS (T-\d+) /g)].map(m=>m[1]);
+  assert.strictEqual(new Set(ids).size,17,'teacher contract must report T-01..T-17 PASS');
+  assert.match(ok.stderr,/PASS teacher regression contract \(T-01\.\.T-17\)/);
+  // A real regression must exit non-zero even when the caller omits
+  // -v ON_ERROR_STOP=1 (the file sets it itself).
+  const plain=src=>docker(['exec','-i',name,'psql','-X','-q','-U','postgres'],src,true);
+  sql('alter policy teacher_courses_okuma on public.teacher_courses using (true);');
+  try {
+    const widened=plain(read(file));
+    assert.notStrictEqual(widened.status,0,'widened teacher policy must fail the contract');
+    assert.match(widened.stderr,/FAIL T-03/);
+  } finally {
+    sql('alter policy teacher_courses_okuma on public.teacher_courses using ((teacher_id = auth.uid()) or public.is_admin());');
+  }
+  const broken=plain(read(file).replace(/^do \$\$/m,()=>'do $$ syntax_error_injected'));
+  assert.notStrictEqual(broken.status,0,'SQL error in contract must exit non-zero');
+  assert.strictEqual(plain(read(file)).status,0,'restored policy passes contract');
+  console.log('PASS teacher SQL contract T-01..T-17 (PG16; widened policy and SQL error exit non-zero)');
+}
 async function concurrency() {
   const locker=session(`begin;
     select id from public.davet_kodlari where etiket='synthetic final slot' for update;
@@ -64,7 +86,7 @@ async function concurrency() {
     set application_name='runtime006_contender_${n}';
     set role authenticated;
     select runtime_test.login(${n});
-    select public.kullanici_kaydi_tamamla('race.user${n}',repeat('3',32));`));
+    select runtime_test.kayit('race.user${n}',repeat('3',32));`));
   try {
     await until(()=>sql(`select count(*) from pg_stat_activity
       where application_name like 'runtime006_contender_%' and wait_event_type='Lock';`).stdout.trim()==='2',
@@ -93,6 +115,9 @@ async function main() {
     docker(['run','--detach','--rm','--name',name,'--network','none',
       '--env','POSTGRES_HOST_AUTH_METHOD=trust','postgres:16']);
     created=true;
+    // pg_isready also succeeds on the image's temporary init server, which then
+    // restarts; wait for init completion first so the first psql cannot race it.
+    await until(()=>/PostgreSQL init process complete/.test(docker(['logs',name],undefined,true).stdout),'PostgreSQL init');
     await until(()=>docker(['exec',name,'pg_isready','-U','postgres'],undefined,true).status===0,'PostgreSQL readiness');
     console.log('Docker postgres:16 / network=none / no exposed ports / synthetic fixtures');
     sqlFile('scripts/runtime_006_bootstrap.sql');
@@ -125,17 +150,31 @@ async function main() {
       assert(ids.includes(`T${String(n).padStart(2,'0')}`),`missing test T${n}`);
     }
     console.log(ids.map(id=>`PASS ${id}`).join('\n'));
+    const enumeration=sqlFile('scripts/runtime_006_login_enumeration_test.sql');
+    const enumIds=[...enumeration.stdout.matchAll(/^PASS (T\d+)$/gm)].map(m=>m[1]);
+    for(const n of [26,27,28,29,30,31]) assert(enumIds.includes(`T${n}`),`missing test T${n}`);
+    console.log((enumeration.stdout.match(/^INFO .*$/m)||['INFO T30 missing'])[0]);
+    console.log(enumIds.map(id=>`PASS ${id}`).join('\n'));
+    contract();
     // Separate fresh psql connection proves NULL GUC check, independent of ACL.
     sql(`select runtime_test.login(4);
       select runtime_test.assert_true(current_setting('sosyolab.registration_context',true) is null,'fresh NULL context');
-      select runtime_test.denied($q$select * from public.kayit_icin_davet_kodu_kullan(repeat('1',32))$q$,
+      select runtime_test.denied($q$select * from public.kayit_icin_davet_kodu_kullan(auth.uid(),repeat('1',32))$q$,
         'P0001','yalnızca kayıt tamamlama');
       set role authenticated;
-      select runtime_test.denied($q$select * from public.kayit_icin_davet_kodu_kullan(repeat('1',32))$q$,'42501');`);
+      select runtime_test.denied($q$select * from public.kayit_icin_davet_kodu_kullan(auth.uid(),repeat('1',32))$q$,'42501');`);
     console.log('PASS T23 (fresh NULL context as owner rejected; client ACL denied)');
     await concurrency();
     inventory();
-    console.log('PASS runtime_006_security_test: T01-T25');
+    // T32-T40: Edge Function auth boundary end-to-end (real core + real DB).
+    await require('./runtime_006_auth_boundary_test.js')({ name });
+    inventory();
+    // T41-T51: F-01 rate limiting (real core + real DB limiter + mutants).
+    await require('./runtime_006_rate_limit_test.js')({ name });
+    // T52-T53: F-02 HMAC invite lookup, F-06 registration reconciliation.
+    await require('./runtime_006_invite_lookup_test.js')({ name });
+    inventory();
+    console.log('PASS runtime_006_security_test: T01-T53 + teacher contract');
   } finally {
     if(created) {
       docker(['rm','--force',name]);

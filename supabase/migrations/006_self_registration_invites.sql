@@ -2,10 +2,16 @@
 -- SosyoLab — 006: self registration + sınıf davet kodları + teacher onay
 -- ============================================================================
 -- AMAÇ
---   * Kullanıcı adı + parola ile self registration
+--   * Kullanıcı adı + parola ile self registration (Edge Function `kayit`;
+--     public Auth signup kapalı, Auth kullanıcısı server-side oluşturulur)
+--   * Kullanıcı adı ile giriş (Edge Function `giris`; iç kimlik tarayıcıya dönmez)
 --   * Davet kodunu server-side sınıflandırma (student grade 1..4 / teacher)
 --   * Teacher kodu ile gelen hesabı doğrudan teacher yapmamak (pending)
 --   * Teacher onayını admin kararına bağlamak
+--   * Edge Function istek hız sınırı (istek_siniri_tuket), pepper'lı HMAC
+--     davet araması (istek başına bcrypt yok), kayıt sonucu kesinleştirme
+--     (kayit_sonucunu_kesinlestir) ve auth_login_email'in istemci SELECT'ine
+--     kapatılması
 --
 -- NOT
 --   Bu migration, 005 sonrası forward-only eklemedir.
@@ -41,6 +47,15 @@ begin
   if to_regprocedure('extensions.gen_salt(text,integer)') is null then
     raise exception 'extensions.gen_salt(text,integer) bulunamadı (pgcrypto gerekli)';
   end if;
+  if to_regprocedure('extensions.hmac(bytea,bytea,text)') is null then
+    raise exception 'extensions.hmac(bytea,bytea,text) bulunamadı (pgcrypto gerekli)';
+  end if;
+  if to_regprocedure('extensions.gen_random_bytes(integer)') is null then
+    raise exception 'extensions.gen_random_bytes(integer) bulunamadı (pgcrypto gerekli)';
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    raise exception 'service_role rolü bulunamadı (Edge Function kayıt/giriş sınırı gerekli)';
+  end if;
 end;
 $$;
 
@@ -59,7 +74,10 @@ alter table public.profiles
 
 alter table public.davet_kodlari
   add column if not exists audience_type text,
-  add column if not exists class_year smallint;
+  add column if not exists class_year smallint,
+  -- Kayıt araması için server-side pepper'lı HMAC (bölüm 3a). bcrypt
+  -- kod_ozeti 001 uyumluluğu için kalır; kayıt yolunda hiç hesaplanmaz.
+  add column if not exists kod_arama_ozeti bytea;
 
 -- 005'ten önce teacher olan satırları yeni duruma hizala.
 update public.profiles
@@ -142,11 +160,14 @@ begin
   if exists (select 1 from pg_constraint where conrelid = 'public.profiles'::regclass and conname = 'profiles_auth_login_email_bicim') then
     alter table public.profiles drop constraint profiles_auth_login_email_bicim;
   end if;
+  -- Tek canonical biçim: u.<UUIDv4 hex>@auth.sosyolab.local. Login çözümlemesi
+  -- bilinmeyen username için aynı biçimde sahte adres döndürdüğünden, biçimi
+  -- farklı tek bir hesap bile varlığını yanıt şeklinden ele verirdi.
   alter table public.profiles
     add constraint profiles_auth_login_email_bicim
     check (
       auth_login_email is null
-      or auth_login_email ~ '^[a-z0-9][a-z0-9._+-]{2,63}@auth\.sosyolab\.local$'
+      or auth_login_email ~ '^u\.[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}@auth\.sosyolab\.local$'
     );
 exception when duplicate_object then null;
 end;
@@ -245,8 +266,198 @@ $$;
 revoke all on function public.uye_profili_var_mi() from public, anon;
 grant execute on function public.uye_profili_var_mi() to authenticated;
 
--- Login UX: kullanıcı adı -> auth email çözümlemesi.
--- Kullanıcı yoksa da sahte bir iç e-posta döner; istemci aynı hata yoluna düşer.
+-- Login çözümlemesi için DB içinde üretilen, istemciye hiç dönmeyen pepper.
+-- Operatör yönetimli secret değildir; kaynakta/tarayıcıda yer almaz.
+-- PostgREST'e açık olmayan ayrı şemada, anon/authenticated erişimi yoktur.
+-- ROTATE EDİLMEZ: değişirse yalnız var olmayan username'lerin yanıtı değişir
+-- ve önce/sonra karşılaştırması hesap varlığını ele verir.
+create schema if not exists sosyolab_private;
+revoke all on schema sosyolab_private from public, anon, authenticated, service_role;
+
+create table if not exists sosyolab_private.login_pepper (
+  tek boolean primary key default true check (tek),
+  pepper bytea not null check (octet_length(pepper) >= 32)
+);
+alter table sosyolab_private.login_pepper enable row level security;
+revoke all on table sosyolab_private.login_pepper from public, anon, authenticated, service_role;
+
+insert into sosyolab_private.login_pepper (tek, pepper)
+values (true, extensions.gen_random_bytes(32))
+on conflict (tek) do nothing;
+
+-- ----------------------------------------------------------------------------
+-- 3a) Server-side anahtarlar: davet araması ve istek hız sınırı
+-- ----------------------------------------------------------------------------
+-- Ayrı amaçlar için ayrı, DB içinde üretilen pepper'lar (login_pepper'dan
+-- bağımsız). İstemciye ve service_role'e doğrudan okuma yoktur; yalnız
+-- aşağıdaki SECURITY DEFINER fonksiyonlar kullanır.
+--   davet_arama  : rotate edilirse TÜM aktif kodlar geçersizleşir; yeni kod
+--                  üretimi gerekir (EK B).
+--   istek_siniri : rotate edilirse yalnız açık sayaç pencereleri sıfırlanır.
+create table if not exists sosyolab_private.sunucu_pepperlari (
+  ad text primary key check (ad in ('davet_arama', 'istek_siniri')),
+  deger bytea not null check (octet_length(deger) >= 32)
+);
+alter table sosyolab_private.sunucu_pepperlari enable row level security;
+revoke all on table sosyolab_private.sunucu_pepperlari from public, anon, authenticated, service_role;
+
+insert into sosyolab_private.sunucu_pepperlari (ad, deger)
+values ('davet_arama', extensions.gen_random_bytes(32)),
+       ('istek_siniri', extensions.gen_random_bytes(32))
+on conflict (ad) do nothing;
+
+-- Davet kodu -> tek HMAC-SHA256 (indeksli eşitlik araması). Kodlar 128-bit
+-- CSPRNG olduğundan yavaş hash gerekmez; pepper bilinmeden özet hesaplanamaz.
+-- Kayıt yolunda istek başına bcrypt döngüsünü (F-02 DoS amplifikasyonu)
+-- kaldırır. İstemcilere kapalı iç helper.
+create or replace function public.davet_arama_ozeti(p_kod text)
+returns bytea
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_pepper bytea;
+begin
+  select sp.deger into v_pepper from sosyolab_private.sunucu_pepperlari sp where sp.ad = 'davet_arama';
+  if v_pepper is null then
+    raise exception 'Davet arama yapılandırması eksik';
+  end if;
+  return extensions.hmac(convert_to('davet:v1:' || upper(btrim(coalesce(p_kod, ''))), 'UTF8'), v_pepper, 'sha256');
+end;
+$$;
+
+revoke all on function public.davet_arama_ozeti(text) from public, anon, authenticated;
+
+create unique index if not exists davet_kodlari_arama_ozeti_unique
+  on public.davet_kodlari (kod_arama_ozeti)
+  where kod_arama_ozeti is not null;
+
+-- Arama özeti olmayan aktif student/teacher kodu kayıtta hiç bulunamaz.
+-- Hash'ten düz metin üretilemeyeceği için dönüştürülmez; pasife alınır ve
+-- operatör EK B ile yeni kod üretir. (006 öncesi production'da bu sınıflar
+-- yoktur: audience_type bu migration'la gelir; satır yalnız eski bir 006
+-- denemesinin uygulandığı staging DB'lerinde bulunabilir.)
+do $$
+declare
+  v_adet integer;
+begin
+  update public.davet_kodlari k
+     set aktif = false
+   where k.aktif
+     and k.audience_type in ('student', 'teacher')
+     and k.kod_arama_ozeti is null;
+  get diagnostics v_adet = row_count;
+  if v_adet > 0 then
+    raise notice '% aktif davet kodu arama özeti olmadığı için pasife alındı; yeni kod üretin (EK B).', v_adet;
+  end if;
+end;
+$$;
+
+do $$
+begin
+  if exists (select 1 from pg_constraint where conrelid = 'public.davet_kodlari'::regclass and conname = 'davet_kayit_arama_ozeti_zorunlu') then
+    alter table public.davet_kodlari drop constraint davet_kayit_arama_ozeti_zorunlu;
+  end if;
+  alter table public.davet_kodlari
+    add constraint davet_kayit_arama_ozeti_zorunlu
+    check (not aktif or audience_type = 'legacy' or kod_arama_ozeti is not null);
+end;
+$$;
+
+-- İstek hız sınırı sayaçları. Ham IP/kullanıcı adı SAKLANMAZ: anahtar,
+-- pepper'lı HMAC(kova tanımı) olarak tutulur. Sabit pencere; süresi dolan
+-- satırlar her çağrıda sınırlı partiyle silinir (TTL).
+create table if not exists sosyolab_private.istek_sayaclari (
+  anahtar bytea not null,
+  baslangic timestamptz not null,
+  bitis timestamptz not null,
+  sayac integer not null check (sayac >= 1),
+  primary key (anahtar, baslangic)
+);
+create index if not exists istek_sayaclari_bitis_idx on sosyolab_private.istek_sayaclari (bitis);
+alter table sosyolab_private.istek_sayaclari enable row level security;
+revoke all on table sosyolab_private.istek_sayaclari from public, anon, authenticated, service_role;
+
+-- Edge Function `giris`/`kayit` hız sınırı. YALNIZ service_role çağırır.
+-- p_kovalar: [{anahtar, limit, pencere}] sıralı. Her kova atomik upsert ile
+-- artırılır (yarışta kayıp sayım yok); ilk aşılan kovada false döner ve
+-- SONRAKİ kovalar artırılmaz: tek IP'den reddedilen denemeler bir kullanıcı
+-- adının küresel kovasını şişiremez. Karar hesap varlığına hiç bakmaz.
+create or replace function public.istek_siniri_tuket(p_kovalar jsonb)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_pepper bytea;
+  v_kova jsonb;
+  v_limit integer;
+  v_pencere integer;
+  v_baslangic timestamptz;
+  v_sayac integer;
+begin
+  if jsonb_typeof(p_kovalar) is distinct from 'array'
+     or jsonb_array_length(p_kovalar) not between 1 and 8 then
+    raise exception 'Geçersiz hız sınırı isteği';
+  end if;
+
+  select sp.deger into v_pepper from sosyolab_private.sunucu_pepperlari sp where sp.ad = 'istek_siniri';
+  if v_pepper is null then
+    raise exception 'Hız sınırı yapılandırması eksik';
+  end if;
+
+  delete from sosyolab_private.istek_sayaclari s
+   where s.ctid in (select x.ctid from sosyolab_private.istek_sayaclari x
+                     where x.bitis < now() limit 500);
+
+  for v_kova in select e.value from jsonb_array_elements(p_kovalar) e loop
+    if jsonb_typeof(v_kova) is distinct from 'object'
+       or jsonb_typeof(v_kova->'limit') is distinct from 'number'
+       or jsonb_typeof(v_kova->'pencere') is distinct from 'number'
+       or jsonb_typeof(v_kova->'anahtar') is distinct from 'string'
+       or length(v_kova->>'anahtar') not between 1 and 512 then
+      raise exception 'Geçersiz hız sınırı kovası';
+    end if;
+    v_limit := (v_kova->>'limit')::integer;
+    v_pencere := (v_kova->>'pencere')::integer;
+    if v_limit not between 1 and 100000 or v_pencere not between 1 and 86400 then
+      raise exception 'Geçersiz hız sınırı kovası';
+    end if;
+
+    v_baslangic := to_timestamp(floor(extract(epoch from now()) / v_pencere) * v_pencere);
+    insert into sosyolab_private.istek_sayaclari as s (anahtar, baslangic, bitis, sayac)
+    values (
+      extensions.hmac(convert_to('istek:v1:' || v_pencere::text || ':' || (v_kova->>'anahtar'), 'UTF8'), v_pepper, 'sha256'),
+      v_baslangic,
+      v_baslangic + make_interval(secs => v_pencere),
+      1
+    )
+    on conflict (anahtar, baslangic) do update set sayac = s.sayac + 1
+    returning s.sayac into v_sayac;
+
+    if v_sayac > v_limit then
+      return false;
+    end if;
+  end loop;
+
+  return true;
+end;
+$$;
+
+revoke all on function public.istek_siniri_tuket(jsonb) from public, anon, authenticated;
+grant execute on function public.istek_siniri_tuket(jsonb) to service_role;
+
+-- Login: kullanıcı adı -> auth email çözümlemesi. YALNIZ service_role (Edge
+-- Function `giris`) çağırabilir; tarayıcı iç login kimliğini hiç öğrenmez, bu
+-- yüzden Auth uç noktalarına (signup/token/otp) verilecek bir kimliği yoktur.
+-- Hesap varlığı yanıttan anlaşılamaz: mevcut hesap için gerçek adres, diğer tüm
+-- durumlarda (yok, eksik profil, geçersiz biçim) pepper'lı HMAC'tan türetilen
+-- aynı canonical biçimde (u.<UUIDv4 hex>) kararlı sahte adres döner. Sahte
+-- adres pepper bilinmeden offline hesaplanamaz; hiçbir girdi için hata atılmaz.
 create or replace function public.kullanici_email_bul(p_username text)
 returns text
 language plpgsql
@@ -256,48 +467,76 @@ set search_path = ''
 as $$
 declare
   v_username text := public.normalize_username(coalesce(p_username, ''));
-  v_email text;
+  v_pepper bytea;
+  v_h text;
   v_fallback text;
+  v_email text;
 begin
-  if v_username = '' then
-    v_username := 'missing';
-  end if;
-  v_fallback := 'u.' || md5('login:' || v_username || ':v2') || '@auth.sosyolab.local';
-
-  if v_username !~ '^[a-z0-9._]{4,24}$' then
-    return v_fallback;
+  select lp.pepper into v_pepper from sosyolab_private.login_pepper lp where lp.tek;
+  if v_pepper is null then
+    raise exception 'Giriş çözümleme yapılandırması eksik';
   end if;
 
-  select p.auth_login_email
-    into v_email
-    from public.profiles p
-   where p.username = v_username
-   limit 1;
+  -- Her yolda hesaplanır: mevcut/olmayan hesap aynı işi yapar.
+  v_h := encode(extensions.hmac(convert_to('login:v3:' || v_username, 'UTF8'), v_pepper, 'sha256'), 'hex');
+  -- UUIDv4 sabit bitleri: 13. hane '4', 17. hane 8/9/a/b. Varyant hanesi,
+  -- adresin geri kalanıyla korelasyon olmasın diye kullanılmayan 33. haneden.
+  v_fallback := 'u.' || substr(v_h, 1, 12) || '4' || substr(v_h, 14, 3)
+             || substr('89ab', (strpos('0123456789abcdef', substr(v_h, 33, 1)) - 1) % 4 + 1, 1)
+             || substr(v_h, 18, 15) || '@auth.sosyolab.local';
 
-  return coalesce(v_email, v_fallback);
+  if v_username ~ '^[a-z0-9._]{4,24}$' then
+    select p.auth_login_email
+      into v_email
+      from public.profiles p
+     where p.username = v_username
+     limit 1;
+  end if;
+
+  -- Biçim kontrolü sorguda değil, her yolda tam bir kez: sorgu filtresi olarak
+  -- olmayan kullanıcıda tüm satırlara uygulanıp ölçülebilir süre farkı yaratıyordu.
+  v_email := coalesce(v_email, v_fallback);
+  if v_email !~ '^u\.[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}@auth\.sosyolab\.local$' then
+    v_email := v_fallback;
+  end if;
+
+  return v_email;
 end;
 $$;
 
-revoke all on function public.kullanici_email_bul(text) from public;
-grant execute on function public.kullanici_email_bul(text) to anon, authenticated;
+revoke all on function public.kullanici_email_bul(text) from public, anon, authenticated;
+grant execute on function public.kullanici_email_bul(text) to service_role;
+
+-- ----------------------------------------------------------------------------
+-- 3b) Server-side kayıt sınırı (Edge Function `kayit`, service_role)
+-- ----------------------------------------------------------------------------
+-- Public Auth signup KAPALIDIR. Auth kullanıcısını yalnız Edge Function,
+-- geçerli davet ön kontrolünden sonra Admin API ile rastgele canonical
+-- kimlikle oluşturur; profil + davet tüketimi aşağıdaki tek transaction'da
+-- tamamlanır. Bu fonksiyonların hiçbiri anon/authenticated'a açık değildir.
+
+-- Eski (istemci oturumuyla çalışan) imzalar kaldırılır.
+drop function if exists public.kullanici_kaydi_tamamla(text, text, text);
+drop function if exists public.kayit_icin_davet_kodu_kullan(text);
 
 -- Registration akışı için davet kodu tüketimi (student/teacher sınıfları).
--- Not: Bu fonksiyon DB içinde bağımsız bir brute-force garantisi vermez.
--- Güvenlik varsayımı: yüksek entropili kod (128-bit+) + platform rate-limit.
-create or replace function public.kayit_icin_davet_kodu_kullan(p_kod text)
+-- Kod tek HMAC + indeksli eşitlikle bulunur (bcrypt döngüsü yok). Brute-force
+-- savunması: 128-bit kod + Edge Function IP hız sınırı (istek_siniri_tuket).
+create or replace function public.kayit_icin_davet_kodu_kullan(p_user_id uuid, p_kod text)
 returns table (audience_type text, class_year smallint, davet_id uuid)
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_uid uuid := auth.uid();
+  v_uid uuid := p_user_id;
   v_kod text := upper(btrim(coalesce(p_kod, '')));
+  v_ozet bytea;
   v_satir public.davet_kodlari%rowtype;
   v_tuketildi boolean;
 begin
   if v_uid is null then
-    raise exception 'Kayıt işlemi için aktif oturum gerekli';
+    raise exception 'Kayıt işlemi için kullanıcı kimliği gerekli';
   end if;
 
   if current_setting('sosyolab.registration_context', true) is distinct from 'on' then
@@ -308,6 +547,8 @@ begin
     raise exception 'Davet kodu geçersiz ya da süresi dolmuş';
   end if;
 
+  v_ozet := public.davet_arama_ozeti(v_kod);
+
   -- Damga yalnızca aynı kod/audience sözleşmesi için yeniden kullanılabilir.
   return query
   select k.audience_type, k.class_year, k.id
@@ -315,7 +556,7 @@ begin
     join public.davet_kodlari k on k.id = d.davet_id
    where d.user_id = v_uid
      and k.audience_type in ('student', 'teacher')
-     and k.kod_ozeti = extensions.crypt(v_kod, k.kod_ozeti)
+     and k.kod_arama_ozeti = v_ozet
    limit 1;
 
   if found then
@@ -326,50 +567,114 @@ begin
     raise exception 'Davet kodu kayıt damgasıyla eşleşmiyor';
   end if;
 
-  for v_satir in
-    select k.* from public.davet_kodlari k
-     where k.aktif
-       and k.audience_type in ('student', 'teacher')
-       and (k.gecerlilik_sonu is null or k.gecerlilik_sonu > now())
-       and (k.azami_kullanim is null or k.kullanim_sayisi < k.azami_kullanim)
-     order by k.created_at desc
-     limit 25
-  loop
-    if v_satir.kod_ozeti = extensions.crypt(v_kod, v_satir.kod_ozeti) then
-      update public.davet_kodlari as k
-         set kullanim_sayisi = k.kullanim_sayisi + 1
-       where k.id = v_satir.id
-         and k.aktif
-         and k.audience_type in ('student', 'teacher')
-         and (k.gecerlilik_sonu is null or k.gecerlilik_sonu > now())
-         and (k.azami_kullanim is null or k.kullanim_sayisi < k.azami_kullanim);
+  select k.* into v_satir
+    from public.davet_kodlari k
+   where k.kod_arama_ozeti = v_ozet
+     and k.aktif
+     and k.audience_type in ('student', 'teacher')
+     and (k.gecerlilik_sonu is null or k.gecerlilik_sonu > now())
+     and (k.azami_kullanim is null or k.kullanim_sayisi < k.azami_kullanim);
 
-      v_tuketildi := found;
-      if not v_tuketildi then
-        raise exception 'Davet kodu geçersiz ya da süresi dolmuş';
-      end if;
+  if not found then
+    raise exception 'Davet kodu geçersiz ya da süresi dolmuş';
+  end if;
 
-      insert into public.davet_dogrulamalari (user_id, davet_id, ogrenci_no)
-      values (v_uid, v_satir.id, null)
-      on conflict (user_id) do nothing;
+  -- Koşullar satır kilidinden sonra yeniden değerlendirilir: son slot yarışında
+  -- yalnız bir transaction tüketir.
+  update public.davet_kodlari as k
+     set kullanim_sayisi = k.kullanim_sayisi + 1
+   where k.id = v_satir.id
+     and k.aktif
+     and k.audience_type in ('student', 'teacher')
+     and (k.gecerlilik_sonu is null or k.gecerlilik_sonu > now())
+     and (k.azami_kullanim is null or k.kullanim_sayisi < k.azami_kullanim);
 
-      return query
-      select v_satir.audience_type, v_satir.class_year, v_satir.id;
-      return;
-    end if;
-  end loop;
+  v_tuketildi := found;
+  if not v_tuketildi then
+    raise exception 'Davet kodu geçersiz ya da süresi dolmuş';
+  end if;
 
-  raise exception 'Davet kodu geçersiz ya da süresi dolmuş';
+  insert into public.davet_dogrulamalari (user_id, davet_id, ogrenci_no)
+  values (v_uid, v_satir.id, null)
+  on conflict (user_id) do nothing;
+
+  return query
+  select v_satir.audience_type, v_satir.class_year, v_satir.id;
 end;
 $$;
 
-revoke all on function public.kayit_icin_davet_kodu_kullan(text) from public, anon, authenticated;
+revoke all on function public.kayit_icin_davet_kodu_kullan(uuid, text) from public, anon, authenticated;
 
 -- 001 helper'ı audience kontrolü yapmaz. Yeni frontend yalnız kayıt RPC'sini
 -- kullanır; migration penceresinde eski istemciyle kod tüketimi desteklenmez.
 revoke all on function public.davet_kullan(text) from public, anon, authenticated;
 
+-- Auth kullanıcısı oluşturulmadan önceki salt-okunur ön kontrol: davet kodu
+-- şu an kullanılabilir mi, kullanıcı adı geçerli/boş mu, teacher için ad soyad
+-- var mı. Hiçbir şey tüketmez. Kod geçersizken kullanıcı adının durumu sonucu
+-- değiştirmez (tek boolean); böylece davetsiz istemci varlık öğrenemez ve
+-- geçersiz denemeler Auth hesabı yaratmaz. Nihai karar yine tamamla'dadır.
+-- Maliyet aktif kod sayısından bağımsızdır: tek HMAC + indeksli eşitlik.
+create or replace function public.kayit_on_kontrol(
+  p_username text,
+  p_sifreli_davet_kodu text,
+  p_display_name text default null
+)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_username text := public.normalize_username(coalesce(p_username, ''));
+  v_kod text := upper(btrim(coalesce(p_sifreli_davet_kodu, '')));
+  v_ozet bytea;
+  v_audience text;
+  v_ad_bos boolean;
+begin
+  if v_kod <> '' and length(v_kod) <= 64 then
+    v_ozet := public.davet_arama_ozeti(v_kod);
+    select d.audience_type
+      into v_audience
+      from public.davet_kodlari d
+     where d.kod_arama_ozeti = v_ozet
+       and d.aktif
+       and d.audience_type in ('student', 'teacher')
+       and (d.gecerlilik_sonu is null or d.gecerlilik_sonu > now())
+       and (d.azami_kullanim is null or d.kullanim_sayisi < d.azami_kullanim);
+  end if;
+
+  -- Kullanıcı adı kontrolü her yolda yapılır; sonuç yalnız kod geçerliyse etkili.
+  v_ad_bos := v_username ~ '^[a-z0-9._]{4,24}$'
+    and v_username not in ('admin', 'administrator', 'root', 'system', 'supabase', 'sosyolab', 'sosyolog35', 'sosyolog.35')
+    and not exists (select 1 from public.profiles p where p.username = v_username);
+
+  return v_audience is not null
+    and v_ad_bos
+    and (v_audience <> 'teacher' or btrim(coalesce(p_display_name, '')) <> '');
+end;
+$$;
+
+revoke all on function public.kayit_on_kontrol(text, text, text) from public, anon, authenticated;
+grant execute on function public.kayit_on_kontrol(text, text, text) to service_role;
+
+-- Kayıt sonucu kesinleştirme damgaları (F-06). Satır = "bu Auth kullanıcısı
+-- için kayıt iptal edildi, tamamla artık commit edemez". Auth kullanıcısı
+-- silinince cascade ile kalkar.
+create table if not exists sosyolab_private.kayit_iptalleri (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table sosyolab_private.kayit_iptalleri enable row level security;
+revoke all on table sosyolab_private.kayit_iptalleri from public, anon, authenticated, service_role;
+
+-- Profil + davet tüketimi tek transaction: herhangi bir hata hepsini geri alır
+-- (davet tüketildi/profil yok durumu oluşamaz). profiles.id auth.users'a
+-- ON DELETE CASCADE bağlıdır (profil var/Auth yok oluşamaz). Login kimliği
+-- JWT'den değil, Edge Function'ın oluşturduğu auth.users satırından okunur.
 create or replace function public.kullanici_kaydi_tamamla(
+  p_user_id uuid,
   p_username text,
   p_sifreli_davet_kodu text,
   p_display_name text default null
@@ -380,9 +685,10 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_uid uuid := auth.uid();
+  v_uid uuid := p_user_id;
   v_username text := public.normalize_username(coalesce(p_username, ''));
-  v_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  v_email text;
+  v_anonim boolean;
   v_audience text;
   v_class_year smallint;
   v_davet_id uuid;
@@ -390,7 +696,7 @@ declare
   v_display_name text;
 begin
   if v_uid is null then
-    raise exception 'Kayıt için giriş oturumu bulunamadı';
+    raise exception 'Kayıt için kullanıcı kimliği bulunamadı';
   end if;
 
   if v_username !~ '^[a-z0-9._]{4,24}$' then
@@ -401,12 +707,25 @@ begin
     raise exception 'Bu kullanıcı adı kullanılamaz';
   end if;
 
-  if v_email !~ '^[a-z0-9][a-z0-9._+-]{2,63}@auth\.sosyolab\.local$' then
+  select lower(coalesce(u.email, '')), coalesce(u.is_anonymous, false)
+    into v_email, v_anonim
+    from auth.users u
+   where u.id = v_uid;
+
+  if v_email is null or v_anonim
+     or v_email !~ '^u\.[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}@auth\.sosyolab\.local$' then
     raise exception 'Kayıt kimliği geçersiz. Lütfen kaydı tekrar başlat.';
   end if;
 
   -- Henüz profile satırı olmayan aynı UID'nin eşzamanlı kayıtlarını da sırala.
+  -- kayit_sonucunu_kesinlestir aynı kilidi alır (F-06).
   perform pg_advisory_xact_lock(hashtextextended(v_uid::text, 006));
+
+  -- Edge Function sonucu "iptal" olarak kesinleştirdiyse (Auth kullanıcısı
+  -- silinecek) gecikmiş bir tamamla hiçbir şey tüketmez.
+  if exists (select 1 from sosyolab_private.kayit_iptalleri ki where ki.user_id = v_uid) then
+    raise exception 'Kayıt iptal edildi. Lütfen kaydı tekrar başlat.';
+  end if;
 
   select *
     into v_mevcut
@@ -427,7 +746,7 @@ begin
 
   select k.audience_type, k.class_year, k.davet_id
     into v_audience, v_class_year, v_davet_id
-    from public.kayit_icin_davet_kodu_kullan(p_sifreli_davet_kodu) k;
+    from public.kayit_icin_davet_kodu_kullan(v_uid, p_sifreli_davet_kodu) k;
 
   if v_audience not in ('student', 'teacher') then
     raise exception 'Bu davet kodu kayıt için uygun değil';
@@ -489,8 +808,55 @@ begin
 end;
 $$;
 
-revoke all on function public.kullanici_kaydi_tamamla(text, text, text) from public, anon;
-grant execute on function public.kullanici_kaydi_tamamla(text, text, text) to authenticated;
+revoke all on function public.kullanici_kaydi_tamamla(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function public.kullanici_kaydi_tamamla(uuid, text, text, text) to service_role;
+
+-- Tamamla çağrısının sonucu bilinmiyorsa (yanıt kayboldu / hata) Edge Function
+-- telafiden ÖNCE bunu çağırır. Tamamla ile aynı advisory lock: süren bir
+-- tamamla commit/rollback olana kadar bekler, böylece "commit sürerken profil
+-- görünmedi -> sil -> cascade + kota sızıntısı" penceresi kapanır.
+--   'tamam' : profil var; kayıt başarılı, silme YAPILMAZ.
+--   'iptal' : profil yok; iptal damgası yazıldı, sonraki/gecikmiş tamamla
+--             reddedilir. Auth kullanıcısını silmek artık güvenlidir.
+create or replace function public.kayit_sonucunu_kesinlestir(p_user_id uuid)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_teacher_status text;
+begin
+  if p_user_id is null then
+    raise exception 'Kayıt kimliği gerekli';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_user_id::text, 006));
+
+  select p.teacher_status into v_teacher_status
+    from public.profiles p
+   where p.id = p_user_id;
+
+  if found then
+    return jsonb_build_object('durum', 'tamam', 'teacher_status', v_teacher_status);
+  end if;
+
+  if not exists (select 1 from auth.users u where u.id = p_user_id) then
+    -- Auth kullanıcısı yoksa tamamla zaten reddeder; damga gerekmez.
+    return jsonb_build_object('durum', 'iptal');
+  end if;
+
+  insert into sosyolab_private.kayit_iptalleri (user_id)
+  values (p_user_id)
+  on conflict (user_id) do nothing;
+
+  return jsonb_build_object('durum', 'iptal');
+end;
+$$;
+
+revoke all on function public.kayit_sonucunu_kesinlestir(uuid) from public, anon, authenticated;
+grant execute on function public.kayit_sonucunu_kesinlestir(uuid) to service_role;
 
 -- Admin öğretim elemanı başvurusu kararı (role yükseltmesi sadece burada).
 create or replace function public.ogretmen_basvurusunu_karara_bagla(
@@ -595,11 +961,14 @@ begin
     raise exception 'Teacher kodları class_year içeremez';
   end if;
 
+  -- kod_arama_ozeti: kayıt araması (HMAC, benzersiz indeks); kod_ozeti: 001
+  -- uyumluluğu için bcrypt. Düz metin saklanmaz/loglanmaz.
   insert into public.davet_kodlari (
-    kod_ozeti, etiket, ogrenci_no, gecerlilik_sonu, azami_kullanim,
+    kod_arama_ozeti, kod_ozeti, etiket, ogrenci_no, gecerlilik_sonu, azami_kullanim,
     aktif, created_by, audience_type, class_year
   )
   values (
+    public.davet_arama_ozeti(v_kod),
     extensions.crypt(v_kod, extensions.gen_salt('bf', 10)),
     nullif(btrim(coalesce(p_etiket, '')), ''),
     null,
@@ -628,6 +997,28 @@ grant execute on function public.admin_davet_kodu_olustur(text, text, smallint, 
 -- yapılır.
 drop policy if exists profiles_kendi_olusturur on public.profiles;
 revoke insert on table public.profiles from anon, authenticated;
+
+-- İç Auth login kimliği (auth_login_email) istemci API'sinden okunamaz:
+-- tablo düzeyi SELECT kaldırılır, auth_login_email DIŞINDAKİ kolonlara kolon
+-- düzeyi SELECT verilir (RLS satır sınırı aynen geçerli). Edge Function
+-- service_role ile çalışır, etkilenmez. profiles'a ileride eklenen kolonlar
+-- otomatik okunamaz; gerekirse açıkça grant edilir.
+do $$
+declare
+  v_kolonlar text;
+begin
+  select string_agg(quote_ident(a.attname), ', ' order by a.attnum)
+    into v_kolonlar
+    from pg_attribute a
+   where a.attrelid = 'public.profiles'::regclass
+     and a.attnum > 0
+     and not a.attisdropped
+     and a.attname <> 'auth_login_email';
+  revoke select on table public.profiles from anon, authenticated;
+  revoke select (auth_login_email) on table public.profiles from anon, authenticated;
+  execute format('grant select (%s) on table public.profiles to authenticated', v_kolonlar);
+end;
+$$;
 
 -- Davet damgası tek başına üyelik sayılmaz: aktif profile membership zorunlu.
 create or replace function public.davet_dogrulandi_mi()

@@ -229,7 +229,8 @@ select n.nspname as sema, c.relname as tablo,
 --
 -- Beklenen:
 --   anon          → HİÇBİR tabloda hiçbir izin
---   authenticated → profiles: SELECT, UPDATE
+--   authenticated → profiles: UPDATE (SELECT yalnız KOLON düzeyinde; auth_login_email
+--                   hariç — tablo düzeyi SELECT artık BEKLENMEYEN ayrıcalıktır, blok L)
 --                   teacher_courses: SELECT, INSERT, DELETE
 --                   materials: SELECT, INSERT, UPDATE, DELETE
 --                   davet_dogrulamalari: HİÇBİRİ (RPC mimarisi — aşağıdaki not)
@@ -243,7 +244,6 @@ with sozlesme(table_name, grantee, privilege_type, durum) as (
     -- ----------------------------------------------------------------------
     -- ZORUNLU — uygulama bu izin olmadan çalışmaz. Eksikse bulgu verir.
     -- ----------------------------------------------------------------------
-    ('profiles',            'authenticated', 'SELECT',     'ZORUNLU'),
     ('profiles',            'authenticated', 'UPDATE',     'ZORUNLU'),
     ('teacher_courses',     'authenticated', 'SELECT',     'ZORUNLU'),
     ('teacher_courses',     'authenticated', 'INSERT',     'ZORUNLU'),
@@ -443,9 +443,13 @@ with hedef(ad, imza, tip, mod) as (
     ('teacher_has_course',       'public.teacher_has_course(text)',        'politika', 'HER'),
     ('normalize_username',       'public.normalize_username(text)',         'ic',       'HER'),
     ('uye_profili_var_mi',       'public.uye_profili_var_mi()',            'politika', 'HER'),
-    ('kullanici_email_bul',      'public.kullanici_email_bul(text)',       'login',    'HER'),
-    ('kayit_icin_davet_kodu_kullan', 'public.kayit_icin_davet_kodu_kullan(text)', 'ic', 'HER'),
-    ('kullanici_kaydi_tamamla',  'public.kullanici_kaydi_tamamla(text,text,text)', 'rpc', 'HER'),
+    ('kullanici_email_bul',      'public.kullanici_email_bul(text)',       'sunucu',   'HER'),
+    ('kayit_icin_davet_kodu_kullan', 'public.kayit_icin_davet_kodu_kullan(uuid,text)', 'ic', 'HER'),
+    ('kayit_on_kontrol',         'public.kayit_on_kontrol(text,text,text)', 'sunucu',  'HER'),
+    ('istek_siniri_tuket',       'public.istek_siniri_tuket(jsonb)',       'sunucu',   'HER'),
+    ('kayit_sonucunu_kesinlestir', 'public.kayit_sonucunu_kesinlestir(uuid)', 'sunucu', 'HER'),
+    ('davet_arama_ozeti',        'public.davet_arama_ozeti(text)',         'ic',       'HER'),
+    ('kullanici_kaydi_tamamla',  'public.kullanici_kaydi_tamamla(uuid,text,text,text)', 'sunucu', 'HER'),
     ('ogretmen_basvurusunu_karara_bagla', 'public.ogretmen_basvurusunu_karara_bagla(uuid,text,text)', 'rpc', 'HER'),
     ('admin_davet_kodu_olustur', 'public.admin_davet_kodu_olustur(text,text,smallint,text,timestamptz,integer)', 'rpc', 'HER'),
     ('davet_dogrulandi_mi',      'public.davet_dogrulandi_mi()',           'politika', 'HER'),
@@ -478,15 +482,15 @@ select h.ad as fonksiyon, h.tip,
       then 'search_path AYARLANMAMIŞ (arama yolu enjeksiyonuna açık)'
     when not f.prosecdef
       then 'SECURITY DEFINER DEĞİL'
-    when h.tip <> 'login' and exists (select 1 from izin i where i.specific_name = f.specific_name
+    when exists (select 1 from izin i where i.specific_name = f.specific_name
                    and i.grantee in ('anon', 'PUBLIC'))
       then 'anon ya da PUBLIC EXECUTE var'
-    when h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
-                                           and i.grantee = 'anon')
-      then 'login fonksiyonu anon EXECUTE bekliyor'
-    when h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
-                                           and i.grantee = 'authenticated')
-      then 'login fonksiyonu authenticated EXECUTE bekliyor'
+    when h.tip = 'sunucu' and exists (select 1 from izin i where i.specific_name = f.specific_name
+                                        and i.grantee = 'authenticated')
+      then 'yalnız service_role olmalıydı ama authenticated EXECUTE var'
+    when h.tip = 'sunucu' and not exists (select 1 from izin i where i.specific_name = f.specific_name
+                                            and i.grantee = 'service_role')
+      then 'service_role EXECUTE YOK — Edge Function kayıt/giriş çalışmaz'
     when h.tip = 'ic' and exists (select 1 from izin i where i.specific_name = f.specific_name
                                     and i.grantee = 'authenticated')
       then 'istemciye kapalı olmalıydı ama authenticated EXECUTE var'
@@ -500,13 +504,12 @@ select h.ad as fonksiyon, h.tip,
  where to_regprocedure(h.imza) is null
     or f.proconfig is null
     or not f.prosecdef
-   or (h.tip <> 'login' and exists (select 1 from izin i where i.specific_name = f.specific_name
+   or exists (select 1 from izin i where i.specific_name = f.specific_name
                  and i.grantee in ('anon', 'PUBLIC'))
-     )
-   or (h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
-                            and i.grantee = 'anon'))
-   or (h.tip = 'login' and not exists (select 1 from izin i where i.specific_name = f.specific_name
+   or (h.tip = 'sunucu' and exists (select 1 from izin i where i.specific_name = f.specific_name
                             and i.grantee = 'authenticated'))
+   or (h.tip = 'sunucu' and not exists (select 1 from izin i where i.specific_name = f.specific_name
+                            and i.grantee = 'service_role'))
     or (h.tip = 'ic' and exists (select 1 from izin i where i.specific_name = f.specific_name
                                    and i.grantee = 'authenticated'))
     or (h.tip in ('politika', 'rpc')
@@ -582,9 +585,10 @@ with repo_fonksiyonlari(ad) as (
     ('dosya_materyale_bagli_mi'),
     -- göç 006
     ('normalize_username'), ('uye_profili_var_mi'), ('kullanici_email_bul'),
-    ('kayit_icin_davet_kodu_kullan'), ('kullanici_kaydi_tamamla'),
+    ('kayit_icin_davet_kodu_kullan'), ('kullanici_kaydi_tamamla'), ('kayit_on_kontrol'),
     ('ogretmen_basvurusunu_karara_bagla'), ('admin_davet_kodu_olustur'),
-    ('profiles_kayit_alanlarini_koru')
+    ('profiles_kayit_alanlarini_koru'), ('davet_arama_ozeti'), ('istek_siniri_tuket'),
+    ('kayit_sonucunu_kesinlestir')
 ),
 sd as (
   -- Genel tarama: public şemasındaki TÜM SECURITY DEFINER fonksiyonlar.
@@ -817,27 +821,85 @@ with kontroller(ad, ok) as (
     ('teacher publish trigger enabled', exists (
       select 1 from pg_trigger where tgrelid='public.materials'::regclass
       and tgname='materials_gonderim_durumunu_ata_trg' and tgenabled='O')),
-    ('registration NULL context kapalı', position('IS DISTINCT FROM' in upper(pg_get_functiondef(to_regprocedure('public.kayit_icin_davet_kodu_kullan(text)')))) > 0)
+    ('registration NULL context kapalı', position('IS DISTINCT FROM' in upper(pg_get_functiondef(to_regprocedure('public.kayit_icin_davet_kodu_kullan(uuid,text)')))) > 0),
+    -- F-05: login çözümlemesi hesap varlığını yanıttan sızdırmaz.
+    ('login pepper mevcut (32 bayt)', coalesce((select octet_length(lp.pepper) >= 32
+      from sosyolab_private.login_pepper lp where lp.tek), false)),
+    ('login pepper istemciye kapalı', not exists (
+      select 1 from (values ('anon'),('authenticated')) r(ad)
+      where has_schema_privilege(r.ad,'sosyolab_private','USAGE')
+         or has_table_privilege(r.ad,'sosyolab_private.login_pepper','SELECT'))
+      and not exists (select 1 from pg_namespace n,
+        aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner))) a
+        where n.nspname='sosyolab_private' and a.grantee=0)),
+    ('auth_login_email canonical CHECK', exists (
+      select 1 from pg_constraint where conrelid='public.profiles'::regclass
+      and conname='profiles_auth_login_email_bicim' and convalidated
+      and pg_get_constraintdef(oid) like '%u\\.[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}@auth%')),
+    ('login fallback pepper''lı, md5 v2 yok', position('login_pepper' in pg_get_functiondef(to_regprocedure('public.kullanici_email_bul(text)'))) > 0
+      and position(':v2' in pg_get_functiondef(to_regprocedure('public.kullanici_email_bul(text)'))) = 0),
+    -- F-04: iç Auth kimliği istemci API'sinden okunamaz (kolon düzeyi SELECT).
+    ('profiles tablo düzeyi SELECT istemciye yok', not exists (
+      select 1 from (values ('anon'),('authenticated')) r(ad)
+      where has_table_privilege(r.ad,'public.profiles','SELECT'))),
+    ('profiles.auth_login_email istemciye okunamaz', not exists (
+      select 1 from (values ('anon'),('authenticated')) r(ad)
+      where has_column_privilege(r.ad,'public.profiles','auth_login_email','SELECT'))),
+    ('profiles uygulama kolonları authenticated SELECT', not exists (
+      select 1 from unnest(array['id','role','display_name','username','class_year','teacher_status','created_at']) c(ad)
+      where not has_column_privilege('authenticated','public.profiles',c.ad,'SELECT'))),
+    ('profiles anon kolon SELECT yok', not has_any_column_privilege('anon','public.profiles','SELECT')),
+    -- F-01/F-02/F-06 server-side anahtarlar ve sayaçlar istemciye ve
+    -- service_role'e doğrudan kapalı (yalnız SECURITY DEFINER fonksiyonlar).
+    ('sunucu pepperları mevcut (davet_arama, istek_siniri)', (
+      select count(*) = 2 from sosyolab_private.sunucu_pepperlari sp
+      where sp.ad in ('davet_arama','istek_siniri') and octet_length(sp.deger) >= 32)),
+    ('sosyolab_private tabloları kapalı', not exists (
+      select 1 from (values ('anon'),('authenticated'),('service_role')) r(ad),
+        (values ('sosyolab_private.sunucu_pepperlari'),('sosyolab_private.istek_sayaclari'),
+                ('sosyolab_private.kayit_iptalleri'),('sosyolab_private.login_pepper')) t(ad)
+      where has_table_privilege(r.ad, t.ad, 'SELECT') or has_table_privilege(r.ad, t.ad, 'INSERT')
+         or has_table_privilege(r.ad, t.ad, 'UPDATE') or has_table_privilege(r.ad, t.ad, 'DELETE'))),
+    ('davet arama özeti benzersiz indeksi', exists (
+      select 1 from pg_index i where i.indexrelid = to_regclass('public.davet_kodlari_arama_ozeti_unique')
+      and i.indisunique and i.indisvalid)),
+    ('aktif student/teacher kodunda arama özeti zorunlu', exists (
+      select 1 from pg_constraint where conrelid='public.davet_kodlari'::regclass
+      and conname='davet_kayit_arama_ozeti_zorunlu' and convalidated)),
+    ('kayıt yolunda bcrypt döngüsü yok', position('crypt(' in pg_get_functiondef(to_regprocedure('public.kayit_on_kontrol(text,text,text)'))) = 0
+      and position('crypt(' in pg_get_functiondef(to_regprocedure('public.kayit_icin_davet_kodu_kullan(uuid,text)'))) = 0
+      and position('davet_arama_ozeti' in pg_get_functiondef(to_regprocedure('public.kayit_on_kontrol(text,text,text)'))) > 0),
+    ('tamamla iptal damgasını denetler', position('kayit_iptalleri' in pg_get_functiondef(to_regprocedure('public.kullanici_kaydi_tamamla(uuid,text,text,text)'))) > 0
+      and position('pg_advisory_xact_lock' in pg_get_functiondef(to_regprocedure('public.kayit_sonucunu_kesinlestir(uuid)'))) > 0),
+    ('hız sınırı pepper''lı ve kısa devreli', position('istek_siniri' in pg_get_functiondef(to_regprocedure('public.istek_siniri_tuket(jsonb)'))) > 0
+      and position('return false' in pg_get_functiondef(to_regprocedure('public.istek_siniri_tuket(jsonb)'))) > 0)
 )
 select ad as bulgu from kontroller where ok is distinct from true;
 
 -- Etkin ACL (PUBLIC/kalıtım dahil), fonksiyonun tam imzasıyla doğrulanır.
-with hedef(imza, anon_ok, auth_ok) as (
+-- servis_ok NULL ise service_role denetlenmez; true ise Edge Function sınırı
+-- için service_role EXECUTE zorunludur.
+with hedef(imza, anon_ok, auth_ok, servis_ok) as (
   values
-    ('public.normalize_username(text)',false,false),
-    ('public.kayit_icin_davet_kodu_kullan(text)',false,false),
-    ('public.davet_kullan(text)',false,false),
-    ('public.kullanici_email_bul(text)',true,true),
-    ('public.uye_profili_var_mi()',false,true),
-    ('public.kullanici_kaydi_tamamla(text,text,text)',false,true),
-    ('public.ogretmen_basvurusunu_karara_bagla(uuid,text,text)',false,true),
-    ('public.admin_davet_kodu_olustur(text,text,smallint,text,timestamptz,integer)',false,true)
+    ('public.normalize_username(text)',false,false,null::boolean),
+    ('public.kayit_icin_davet_kodu_kullan(uuid,text)',false,false,null),
+    ('public.davet_kullan(text)',false,false,null),
+    ('public.kullanici_email_bul(text)',false,false,true),
+    ('public.kayit_on_kontrol(text,text,text)',false,false,true),
+    ('public.kullanici_kaydi_tamamla(uuid,text,text,text)',false,false,true),
+    ('public.istek_siniri_tuket(jsonb)',false,false,true),
+    ('public.kayit_sonucunu_kesinlestir(uuid)',false,false,true),
+    ('public.davet_arama_ozeti(text)',false,false,null),
+    ('public.uye_profili_var_mi()',false,true,null),
+    ('public.ogretmen_basvurusunu_karara_bagla(uuid,text,text)',false,true,null),
+    ('public.admin_davet_kodu_olustur(text,text,smallint,text,timestamptz,integer)',false,true,null)
 )
 select h.imza as bulgu from hedef h left join pg_proc p on p.oid=to_regprocedure(h.imza)
 where p.oid is null or not p.prosecdef
    or not coalesce(p.proconfig @> array['search_path=""'],false)
    or has_function_privilege('anon',p.oid,'EXECUTE') is distinct from h.anon_ok
    or has_function_privilege('authenticated',p.oid,'EXECUTE') is distinct from h.auth_ok
+   or (h.servis_ok is not null and has_function_privilege('service_role',p.oid,'EXECUTE') is distinct from h.servis_ok)
    or exists (select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
               where a.grantee=0 and a.privilege_type='EXECUTE');
 

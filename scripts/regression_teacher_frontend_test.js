@@ -23,8 +23,8 @@ function main() {
 
   mustContain('data-action="auth-sekme"', 'Auth ekranında giriş/kayıt sekmeleri olmalı');
   mustContain('async function kayitDene()', 'Kayıt akışı olmalı');
-  mustContain('rpc("kullanici_kaydi_tamamla"', 'Kayıt akışı kullanıcı_kaydi_tamamla RPC çağırmalı');
-  mustContain('rpc("kullanici_email_bul"', 'Giriş akışı kullanıcı_email_bul RPC çağırmalı');
+  mustContain('sinirCagir("kayit"', 'Kayıt akışı server-side kayit Edge Function çağırmalı');
+  mustContain('sinirCagir("giris"', 'Giriş akışı server-side giris Edge Function çağırmalı');
 
   mustContain('Derslerim', 'Sidebar içinde Derslerim görünümü olmalı');
   mustContain('function derslerimGorunumu()', 'Derslerim sayfası olmalı');

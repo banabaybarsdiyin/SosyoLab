@@ -15,8 +15,13 @@ node scripts/regression_teacher_frontend_test.js
 ### DB sözleşme testleri
 
 ```bash
-psql "<SUPABASE_CONNECTION_STRING>" -f supabase/regression_teacher_contract.sql
+psql "<SUPABASE_CONNECTION_STRING>" -v ON_ERROR_STOP=1 -f supabase/regression_teacher_contract.sql
 ```
+
+Dosya 005 + 006 sonrası şemaya karşı salt okunur çalışır, her test için
+`PASS T-xx` NOTICE basar; herhangi bir FAIL veya SQL hatası exception ile
+non-zero exit verir (dosya `\set ON_ERROR_STOP on` içerir). Yerel PG16
+kanıtı `scripts/runtime_006_security_test.ps1` harness'ındadır.
 
 ## Test matrisi
 
@@ -37,6 +42,8 @@ psql "<SUPABASE_CONNECTION_STRING>" -f supabase/regression_teacher_contract.sql
 | T-13 | teacher Storage'a yalnız kendi UID klasörüne yükler | `supabase/regression_teacher_contract.sql` |
 | T-14 | teacher yayımladığı dosya authenticated kullanıcı tarafından okunur | `supabase/regression_teacher_contract.sql` |
 | T-15 | mevcut invite/RLS hardening regress etmez | `supabase/regression_teacher_contract.sql` |
+| T-16 | sos401 CHECK/helper/trigger ile canonical olarak dışlanır | `supabase/regression_teacher_contract.sql` |
+| T-17 | ders ataması yalnız onaylı teacher profiline (BEFORE INSERT/UPDATE trigger, RLS açık) | `supabase/regression_teacher_contract.sql` |
 
 ## Frontend regresyon kontrol listesi
 

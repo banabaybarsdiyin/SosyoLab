@@ -53,7 +53,13 @@ Hesap başına plan:
 1. UUID, kurumsal Auth email, mevcut dersler, materyal sahipliği ve oturumları
    güvenli operatör kaydında envanterle. UUID/sahiplik referanslarını koru.
 2. Kullanıcıyla canonical, benzersiz, rezerve olmayan 4–24 karakter username
-   ve internal `@auth.sosyolab.local` login kimliğini kararlaştır. SQL
+   ve internal login kimliğini kararlaştır. Login kimliği **yalnız** canonical
+   biçimde olabilir: `u.<UUIDv4 hex>@auth.sosyolab.local`, ör.
+   `'u.' || replace(gen_random_uuid()::text, '-', '') || '@auth.sosyolab.local'`.
+   İsimden türetilmiş adres (`u.ahmet@...`) CHECK ile reddedilir; aksi halde
+   login çözümlemesi hesabın varlığını yanıt biçiminden ele verirdi. Auth
+   email'i Admin API ile tam olarak bu değere çekilmelidir (`giris` Edge
+   Function'ı parola doğrulamasını bu kimlikle yaptırır). SQL
    `normalize_username` sözleşmesi ve index çakışmaları kontrol edilsin.
 3. Auth email değişikliği gerekiyorsa **Supabase Auth Admin API veya güvenli
    operator-side işlem** kullan. Browser/service_role çözümü üretme; doğrudan

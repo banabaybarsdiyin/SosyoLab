@@ -1,7 +1,7 @@
 -- Only fixed SYNTHETIC identities/codes. Never connect this to Supabase.
 insert into auth.users(id,email,is_anonymous,raw_app_meta_data)
 select runtime_test.identity(n),
-       case when n=2 then 'legacy-teacher@example.invalid' else 'u.test'||n||'@auth.sosyolab.local' end,
+       case when n=2 then 'legacy-teacher@example.invalid' else runtime_test.email(n) end,
        n=3, jsonb_build_object('provider',case when n=3 then 'anonymous' else 'email' end)
 from generate_series(1,24) n;
 insert into public.profiles(id,role,display_name) values
