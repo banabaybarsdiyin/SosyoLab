@@ -8,6 +8,13 @@ registration smoke → teacher pending smoke → admin approval smoke → fronte
 deploy → smoke.sh → 4 student + 1 teacher production invite → final UI.
 **Frontend DB 006'dan önce deploy edilmez.**
 
+**Mevcut SosyoLab production'ı** eski bir 006 sürümündedir; onun sırası
+DEPLOYMENT-SECURITY **bölüm 12**'dir: bakım penceresi → snapshot →
+`pre_007_fingerprint.sql` (`eski_006`) → 007 → POST inventory → hesap başına
+legacy backfill → orphan incelemesi → Edge Functions → Auth ayarları →
+**G1–G10** → frontend → migration geçmişi uzlaştırması. Production'da 006
+çalıştırılmaz.
+
 Bu belge bir operatör prosedürüdür; bu remediation çalışması production'a
 bağlanmaz ve gerçek kullanıcı/davet oluşturmaz. Production smoke verileri
 ayrıca yetkilendirilmiş operatör tarafından güvenli ortamda yönetilir.
@@ -16,7 +23,31 @@ ayrıca yetkilendirilmiş operatör tarafından güvenli ortamda yönetilir.
 
 ```powershell
 pwsh -NoProfile -File scripts/runtime_006_security_test.ps1
+node scripts/runtime_007_drift_test.js          # eski 006 production drift -> 007
+node scripts/regression_007_reconciliation_test.js
 ```
+
+Ana harness temiz kurulum yolunu 001→007 olarak uygular (006'dan sonra 007
+`final_006` durumunda idempotent no-op). `runtime_007_drift_test.js` gözlenen
+eski production durumunu kurar ve 007'yi onun üzerinde dener:
+
+- **Kurulum:** HEAD schema + 001–005, git `c1f3068` / `a0e4931` 006'sı ve
+  production şekilli sentetik veri (16 Auth, 15 username'siz profil,
+  1 orphan, admin=1/user=14, 1 pasif legacy davet).
+- **Sonuçta beklenen katalog:** temiz 001→006 kurulumuyla birebir aynı
+  (fonksiyon+ACL, kolon, kolon ACL, constraint, index, policy, trigger).
+  Tüm satırlar korunur.
+- **Tekrar ve temiz kurulum:** 007 iki kez çalışınca ve temiz 006 üzerinde
+  çalışınca hiçbir şey değişmez.
+- **Drift:** 7 beklenmeyen drift durumu RAISE ile tam geri alınır.
+- **Mutantlar:** 3 son koşul mutantı yakalanır.
+- **Backfill:** backfill şablonu (1 başarı, 8 güvensiz girdi reddi) ve
+  PII'siz envanterler doğrulanır.
+
+Harness hem `production` modunda (fonksiyonlarda default grant yok, gözlenen)
+hem `hosted-defaults` modunda, yerelde mevcut `postgres:16` ve `postgres:17`
+imajlarıyla koşar. Bu yerel/model kanıtıdır; production PRE-007 parmak izi
+yine operatörce alınır.
 
 Gerekenler: Node, Docker Engine ve yerelde `postgres:16` imajı. Harness imaj
 indirmez, `--network none` kullanır, port açmaz. `schema.sql` → 001 → 002 →

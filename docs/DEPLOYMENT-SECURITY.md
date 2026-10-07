@@ -478,6 +478,13 @@ SHA-256: `8596965fe918e656600a1b568d3a168f5c0d3d22a600886bb6f44a6555db01e7`
 
 ## 11. 006 production release sırası
 
+> **Mevcut SosyoLab production'ı bu yolu KULLANMAZ.** Production'a 006'nın
+> eski bir sürümü uygulanmış bulundu (PRE-FLIGHT: anon'a açık
+> `kullanici_email_bul`, `kod_arama_ozeti` yok). O durum için yalnız
+> **bölüm 12 (OLD-006 PRODUCTION RECONCILIATION, migration 007)** geçerlidir.
+> Bu bölüm 005 durumundaki ya da boş kurulumlar içindir (006 sonrası 007
+> idempotent no-op'tur).
+
 Bu prosedür mevcut 005 production şeması içindir. Yeni boş kurulumda önce
 `schema.sql` → `001` → `002` → `003` → `004` → `005` uygulanır.
 Uygulanmış eski migration dosyaları tekrar çalıştırılmaz. `inventory.sql`
@@ -730,6 +737,172 @@ uyumluluğu için yazılmaya devam eder. Aktif student/teacher kodunda arama
 - GoTrue davranışı (signup kapalıyken tek tip red, bcrypt yalnız var olan
   hesapta, `Sb-Forwarded-For`) yerelde **model/adaptör sözleşmesi** ile test
   edildi; hosted kanıt değildir, LIVE-VALIDATION G1–G10 ile doğrulanır.
+
+---
+
+## 12. OLD-006 PRODUCTION RECONCILIATION (migration 007)
+
+### Neden ayrı bir yol
+
+Canlı PRE-FLIGHT, production'ın 005'te değil **eski bir 006** sürümünde
+olduğunu gösterdi:
+
+- `kullanici_email_bul(text)` anon/authenticated'a açık;
+- istemci oturumuyla çalışan `kullanici_kaydi_tamamla(text,text,text)` ve
+  `kayit_icin_davet_kodu_kullan(text)` mevcut;
+- `kod_arama_ozeti`, `sosyolab_private`, hız sınırı ve kesinleştirme yok;
+- `authenticated`, `profiles.auth_login_email` SELECT/UPDATE yetkisine sahip;
+- `supabase_migrations.schema_migrations` yok.
+
+İmza, ACL ve kolon parmak izi git `c1f3068` ve `a0e4931` 006 sürümlerinin
+ikisiyle de birebir uyuşuyor (001–005 o tarihten beri değişmedi). Sağlanan
+fonksiyon MD5'leri hiçbir commit'in gövdesiyle (LF/CRLF/trim varyantları)
+eşleşmedi; hesaplama yöntemi bilinmediği için kanıt olarak kullanılmadı.
+007 iki sürümü de desteklenen başlangıç durumu sayar.
+
+**006 production'da yeniden çalıştırılmaz ve değiştirilmez.** 006 temiz
+kurulum migration'ıdır. 007 = eski 006 → final 006 (860b278) DB durumu.
+
+### 007 sözleşmesi
+
+- **Bölüm 0 — fail-closed ön koşullar.** Yalnız iki durum kabul edilir:
+  `eski_006` (eski imzalar var, final nesnelerin hiçbiri yok) ve `final_006`
+  (final nesnelerin tamamı var; idempotent tekrar). Aşağıdakilerin her biri
+  RAISE + tam rollback'tir:
+  - 005 durumu (006 kolonları yok)
+  - kısmi/karışık durum (ör. yarım `sosyolab_private`, tek bir final fonksiyon)
+  - beklenmeyen overload
+  - `auth.users` üzerinde internal olmayan trigger
+  - Auth'suz profil
+  - canonical olmayan `auth_login_email` (eski 006 CHECK'i `ad@auth.sosyolab.local` biçimine izin veriyordu)
+  - geçersiz/rezerve username
+  - role/teacher_status/class_year tutarsızlığı
+  - beklenmeyen davet yapısı
+
+  Satır sayısı (16/15) şart koşulmaz; yapısal invariant'lar kontrol edilir.
+- **Bölüm 1–7 — final 006 gövdesinin birebir kopyası.** Paralel tasarım
+  yoktur. `scripts/regression_007_reconciliation_test.js` byte eşitliğini
+  denetler. Eski imzalar `drop function if exists` ile kaldırılır, final
+  RPC'ler, pepper'lar (`on conflict do nothing` — final durumda rotate
+  edilmez), hız sınırı, HMAC davet araması, kolon yetkileri ve politikalar
+  kurulur. Arama özeti olmayan **aktif** student/teacher kodu pasife alınır
+  (silinmez). Production'da yalnız 1 pasif legacy kod vardır; o olduğu gibi
+  kalır.
+- **Bölüm 9 — fail-closed son koşullar.** Satır sayıları korunur
+  (`profiles`, `auth.users`, `davet_kodlari`, `davet_dogrulamalari`,
+  `materials`, sos401 dışı atamalar, username'siz profil, profilsiz Auth).
+  Eski imzalar yoktur. Sunucu RPC'lerinde PUBLIC/anon/authenticated
+  EXECUTE yok, service_role EXECUTE var; iç helper'lar istemcilere kapalıdır.
+  `auth_login_email` SELECT ve tablo düzeyi SELECT authenticated için kapalı,
+  uygulamanın okuduğu kolonlar açık; profiles INSERT kapalı.
+  `sosyolab_private` hiçbir API rolüne açık değil. Pepper satırları tam ve
+  final durumda değişmemiş. Özet index'i ve CHECK'i mevcut, üyelik
+  politikaları `uye_profili_var_mi()` içeriyor. Herhangi biri → RAISE, tam
+  rollback.
+- Fonksiyon yetkileri hiçbir default privilege'a dayanmaz (production'da
+  service_role'e otomatik fonksiyon grant'i yoktur).
+- **Kapsam dışı (bilinçli):** legacy kimlik backfill'i ve profilsiz Auth
+  hesabı. 007 ikisine de dokunmaz.
+
+Yerel kanıt: `node scripts/runtime_007_drift_test.js` ve
+`node scripts/regression_007_reconciliation_test.js` (bkz. LIVE-VALIDATION).
+
+### Production sırası (mevcut SosyoLab)
+
+Herhangi bir adımda beklenmeyen sonuç → **DUR**; sonraki adıma geçilmez.
+
+1. **Bakım penceresi.** 007 sonrası eski frontend'in giriş/kayıt akışı
+   fail-closed kırılır (resolver ve eski RPC'ler kapanır). Kullanıcılar
+   bilgilendirilir; frontend bu süre boyunca değiştirilmez.
+2. **Snapshot / backup** (Dashboard → Database → Backups veya PITR noktası
+   kaydı). Geri dönüş yalnız bu snapshot'tan, bakım penceresi içinde yapılır.
+3. **PRE fingerprint (salt okuma):**
+   `psql <baglanti> -v ON_ERROR_STOP=1 -f supabase/pre_007_fingerprint.sql`.
+   `durum = eski_006` ve tüm `engel_*` = 0 olmalı. `DESTEKLENMIYOR` ya da
+   `engel_*` > 0 → **DUR**, 007 uygulanmaz, bulgu raporlanır.
+4. **007 transaction:**
+   `psql <baglanti> -v ON_ERROR_STOP=1 -f supabase/migrations/007_production_006_reconciliation.sql`.
+   NOTICE'ta `007 başlangıç durumu: eski_006` ve `007 tamam` görülmeli.
+   Hata → transaction geri alınmıştır; **DUR**. `supabase db push`
+   **kullanılmaz** (migration geçmişi yok; push 001'den başlamaya çalışır).
+5. **POST inventory:**
+   `psql <baglanti> -v ON_ERROR_STOP=1 -v mod=POST -f supabase/inventory.sql`
+   → A–G/G2/K/L 0 satır. Ayrıca `pre_007_fingerprint.sql` artık
+   `durum = final_006` vermeli.
+6. **Operatör legacy kullanıcı backfill'i** (hesap başına, otomatik değil):
+   - `psql … -f supabase/legacy_identity_inventory.sql` salt-okunur
+     envanteri verir. Email, ad soyad, öğrenci no ve tam UUID yazdırmaz;
+     8 haneli kısa önek ve email sınıfı kullanır. Profil başına aksiyon:
+     preserve (backfill) / re-onboard / test hesabı silme.
+   - Preserve kararı için: kullanıcıyla canonical, benzersiz, rezerve
+     olmayan bir username kararlaştırılır. Yeni canonical iç kimlik üretilir
+     (`'u.' || replace(gen_random_uuid()::text,'-','') || '@auth.sosyolab.local'`)
+     ve Auth email'i **Admin API** ile bu değere çekilir (SQL'den
+     `auth.users` güncellenmez). Gerekirse parola güvenli kanaldan
+     yeniden belirlenir.
+   - Ardından: `psql … -v profil_id=<UUID> -v kullanici_adi=<ad>
+     -v giris_kimligi=<kimlik> -f supabase/legacy_user_backfill.sql`.
+     Şablon tek transaction'dır ve dolu kimliğin üzerine yazmaz. Alınmış /
+     rezerve / canonical olmayan adı, canonical olmayan kimliği, başka
+     profildeki kimliği, Admin API adımı yapılmamış hesabı ve anonim hesabı
+     reddeder; sonunda resolver'ın yeni kimliği döndürdüğünü doğrular.
+   - Admin hesabı `ADMIN_LOGIN_EMAIL` takma adıyla girer; admin için
+     backfill opsiyoneldir.
+   - Davet damgası olmayan preserve hesabı, arşive erişim için ayrıca
+     operatör kararı gerektirir. Envanterde `davet_damgasi` sütununa bakılır.
+   - Belirsiz kalan hesap → o hesap için DUR, kararı kaydet. Diğer hesaplar
+     ve release, karar kaydedilene kadar bekler.
+7. **Profilsiz Auth (orphan) incelemesi.** Envanterin C bölümü bu hesabı
+   sınıflandırır: anonim / yarım kayıt / diğer. 007 hesabı korur; final RLS
+   profil üyeliği istediği için giriş, okuma ve yükleme yapamaz
+   (`runtime_007_drift_test` (15)). Silme yalnız açık operatör kararıyla ve
+   **Admin API** ile yapılır. Anonim kalıntı, anonymous sign-in kapatıldıktan
+   (adım 9) sonra silinebilir. Gerçek bir kullanıcıysa `kayit` ile yeniden
+   onboard edilir.
+8. **Edge Functions:** bölüm 11 adım 6'daki gibi (`config.toml`,
+   `verify_jwt=false`, secrets; `AUTH_IP_FORWARDING=required`).
+9. **Auth ayarları:** bölüm 8 / bölüm 11 adım 7. Public signup KAPALI,
+   anonymous sign-in KAPALI, IP Address Forwarding AÇIK.
+10. **LIVE-VALIDATION G1–G10** (sentetik hesap ve kodla). Tek bir FAIL
+    frontend'i durdurur. G7, G8'in IP-B kontrolüyle birlikte; G9 pozitif
+    kontrolle (`select=username` → 200) değerlendirilir.
+11. **Frontend release** (main merge = deploy). Yalnız 1–10 PASS ise.
+    Ardından `scripts/smoke.sh`, EK B ile production davet kodları ve final
+    UI doğrulaması.
+12. **Migration geçmişi uzlaştırması** (aşağıda). Yalnız 1–11 tamamlandıktan
+    ve şema final durumla eşleştikten sonra.
+
+**Geri dönüş.** 4. adımda hata → otomatik rollback; production değişmemiştir.
+5–10 arasında FAIL → frontend eski hâlinde kalır, bakım penceresi sürer;
+forward-fix edilir ya da snapshot'tan geri yüklenir. Public signup veya
+anonymous sign-in geri dönüş aracı olarak **açılmaz**.
+
+### Migration geçmişi uzlaştırma planı (UYGULANMADI — gelecek adım)
+
+Production'da `supabase_migrations.schema_migrations` yoktur. Repo sürümleri
+dosya adının sayısal önekidir: `001`, `002`, `003`, `004`, `005`, `006`,
+`007`. Bu sürümler geçmişe yalnız **şema 007 sonrası final duruma eşit ve
+adım 1–11 PASS iken** "applied" olarak işlenir. 006 burada "final 006
+durumu 007 ile sağlandı" anlamına gelir: 006 dosyası production'da hiç
+çalıştırılmaz.
+
+```bash
+# Güvenli operatör ortamı; token/parola komut satırına yazılmaz.
+supabase link --project-ref <REF>
+supabase migration list                    # beklenen: local 001..007, remote boş
+pwsh -NoProfile -File scripts/runtime_006_security_test.ps1   # yerel kanıt tekrar
+psql <baglanti> -v ON_ERROR_STOP=1 -f supabase/pre_007_fingerprint.sql   # durum = final_006
+supabase migration repair --status applied 001 002 003 004 005 006 007
+supabase migration list                    # beklenen: 001..007 local = remote
+```
+
+- `migration repair` yalnız geçmiş satırı yazar, SQL çalıştırmaz.
+  **`supabase db push` hiçbir aşamada geçmiş onarılmadan çalıştırılmaz.**
+  Aksi halde 001'den itibaren yeniden uygulamaya çalışır.
+- `pre_007_fingerprint.sql` `final_006` dışında bir şey veriyorsa repair
+  **yapılmaz**.
+- Sonraki her migration (`008…`) normal CLI akışıyla, önce staging'de
+  uygulanır.
 
 ---
 

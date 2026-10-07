@@ -144,6 +144,12 @@ async function main() {
     console.log('PASS PRE-006 inventory on real 005 schema (teacher=1, admin=1, anonymous user=1, sos401=2)');
     sqlFile('supabase/migrations/006_self_registration_invites.sql');
     inventory();
+    // Fresh-install path is 001..007: 007 on a final 006 DB is an idempotent
+    // no-op (old-006 production drift is runtime_007_drift_test.js).
+    const m007=sqlFile('supabase/migrations/007_production_006_reconciliation.sql');
+    assert.match(m007.stderr,/007 başlangıç durumu: final_006/);
+    console.log('PASS 007 on clean final 006 (final_006 state, idempotent)');
+    inventory();
     const results=sqlFile('scripts/runtime_006_security_test.sql');
     const ids=[...results.stdout.matchAll(/^PASS (T\d+)$/gm)].map(m=>m[1]);
     for(const n of [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,19,20,21,22,24,25]) {

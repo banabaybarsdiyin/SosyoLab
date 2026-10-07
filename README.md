@@ -247,8 +247,15 @@ gönderim ve onay akışı kapalıdır. Paylaşımlı arşivi açmak için:
    | `supabase/migrations/004_revoke_public_table_ddl_privs.sql` | Residual hardening: `denetim_kaydi` ve `davet_dogrulamalari` üzerinde `anon/authenticated` için `TRUNCATE`, `REFERENCES`, `TRIGGER` ayrıcalıklarını kaldırır |
    | `supabase/migrations/005_teacher_role.sql` | `teacher` rolü, `teacher_courses` tablosu, öğretim elemanı için ders-sahipliği kontrollü doğrudan yayın akışı |
    | `supabase/migrations/006_self_registration_invites.sql` | Kullanıcı adı+parola self-registration, sınıf bazlı davet tipleri, teacher pending + admin approval |
+   | `supabase/migrations/007_production_006_reconciliation.sql` | Eski 006 sürümü uygulanmış production'ı final 006 güvenlik durumuna ileri yönlü taşır; final 006 üzerinde idempotent no-op |
 
-   Önerilen uygulama sırası: `001` → `002` → `003` → `004_revoke_public_table_ddl_privs` → `005_teacher_role` → `006_self_registration_invites`.
+   Önerilen uygulama sırası: `001` → `002` → `003` → `004_revoke_public_table_ddl_privs` → `005_teacher_role` → `006_self_registration_invites` → `007_production_006_reconciliation`.
+
+   **İki yol:** 005 durumundaki (veya boş) kurulum `006` (+ no-op `007`)
+   uygular — `docs/DEPLOYMENT-SECURITY.md` bölüm 11. 006'nın eski bir sürümü
+   uygulanmış **mevcut SosyoLab production'ı** yalnız `007` uygular —
+   bölüm 12 (OLD-006 PRODUCTION RECONCILIATION). Production'da 006 yeniden
+   çalıştırılmaz.
 
    Öğretim elemanı hesabı ve ders ataması için: `docs/TEACHER-SETUP.md`.
 
