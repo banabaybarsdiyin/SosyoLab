@@ -825,6 +825,7 @@ Herhangi bir adımda beklenmeyen sonuç → **DUR**; sonraki adıma geçilmez.
    NOTICE'ta `007 başlangıç durumu: eski_006` ve `007 tamam` görülmeli.
    Hata → transaction geri alınmıştır; **DUR**. `supabase db push`
    **kullanılmaz** (migration geçmişi yok; push 001'den başlamaya çalışır).
+   Ardından aynı yolla `supabase/migrations/008_runtime_privilege_hardening.sql` (yalnız TRUNCATE/REFERENCES/TRIGGER revoke; hata → DUR).
 5. **POST inventory:**
    `psql <baglanti> -v ON_ERROR_STOP=1 -v mod=POST -f supabase/inventory.sql`
    → A–G/G2/K/L 0 satır. Ayrıca `pre_007_fingerprint.sql` artık
@@ -892,8 +893,8 @@ supabase link --project-ref <REF>
 supabase migration list                    # beklenen: local 001..007, remote boş
 pwsh -NoProfile -File scripts/runtime_006_security_test.ps1   # yerel kanıt tekrar
 psql <baglanti> -v ON_ERROR_STOP=1 -f supabase/pre_007_fingerprint.sql   # durum = final_006
-supabase migration repair --status applied 001 002 003 004 005 006 007
-supabase migration list                    # beklenen: 001..007 local = remote
+supabase migration repair --status applied 001 002 003 004 005 006 007 008
+supabase migration list                    # beklenen: 001..008 local = remote
 ```
 
 - `migration repair` yalnız geçmiş satırı yazar, SQL çalıştırmaz.

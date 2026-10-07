@@ -149,6 +149,9 @@ async function main() {
     const m007=sqlFile('supabase/migrations/007_production_006_reconciliation.sql');
     assert.match(m007.stderr,/007 başlangıç durumu: final_006/);
     console.log('PASS 007 on clean final 006 (final_006 state, idempotent)');
+    // 008: TRUNCATE/REFERENCES/TRIGGER cleanup (runtime_008_privilege_test.js).
+    sqlFile('supabase/migrations/008_runtime_privilege_hardening.sql');
+    console.log('PASS 008 privilege cleanup applied; T01-T53 below run on 001..008');
     inventory();
     const results=sqlFile('scripts/runtime_006_security_test.sql');
     const ids=[...results.stdout.matchAll(/^PASS (T\d+)$/gm)].map(m=>m[1]);
