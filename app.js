@@ -956,8 +956,9 @@
           <div class="auth-card">
             <div class="tabs" role="tablist" aria-label="Kimlik doğrulama sekmeleri">
               <button class="tab" role="tab" data-action="auth-sekme" data-sekme="giris" aria-selected="${girisAktif}" tabindex="${girisAktif ? "0" : "-1"}">Giriş Yap</button>
-              <button class="tab" role="tab" data-action="auth-sekme" data-sekme="kayit" aria-selected="${!girisAktif}" tabindex="${!girisAktif ? "0" : "-1"}">Davet Koduyla Kayıt Ol</button>
+              <button class="tab tab-davet" role="tab" data-action="auth-sekme" data-sekme="kayit" aria-selected="${!girisAktif}" tabindex="${!girisAktif ? "0" : "-1"}">Davet Koduyla Kayıt Ol</button>
             </div>
+            ${girisAktif ? `<p class="tab-davet-yardim">İlk kez giriş yapıyorsanız davet kodunuzla hesabınızı oluşturun.</p>` : ""}
             <h2>${girisAktif ? "Arşive giriş" : "Yeni hesap oluştur"}</h2>
             <p class="lede">${girisAktif
               ? "Kullanıcı adın ve parolanla giriş yap."
@@ -986,7 +987,9 @@
             <div class="field">
               <label for="kayit-kullanici">Kullanıcı adı</label>
               <input class="input" id="kayit-kullanici" type="text" maxlength="24" autocomplete="username"
+                     placeholder="202312345 veya aysekaya" aria-describedby="kayit-kullanici-yardim"
                      autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+              <p class="form-hint" id="kayit-kullanici-yardim">Öğrenciler: okul numarası · Öğretim görevlileri: ad soyad (bitişik, Türkçe karakter olmadan)</p>
             </div>
             <div class="field">
               <label for="kayit-adsoyad">Ad Soyad (öğretim elemanı davetinde zorunlu)</label>

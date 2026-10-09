@@ -514,6 +514,32 @@
   .tab:hover { color: var(--text); }
   .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--ink); }
 
+  /* --- giriş ekranı: "Davet Koduyla Kayıt Ol" CTA sekmesi --- */
+  /* Alt çizgili sekme yerine yuvarlak amber kutu. Metin dar ekranda iki
+     satıra kırılabilir (min-width: 0); 320 px'de .tabs yatay kaymaz. */
+  .tab.tab-davet {
+    align-self: center;
+    min-width: 0;
+    margin: 4px 0 6px 8px;
+    padding: 7px 14px;
+    background: var(--amber-soft);
+    border: 1px solid #D9C49A;
+    border-radius: 8px;
+    color: var(--ink);
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    white-space: normal;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .tab.tab-davet:hover { background: #EBDDBE; border-color: var(--amber); color: var(--ink); }
+  .tab.tab-davet:active { background: #E3D1A8; }
+  .tab.tab-davet[aria-selected="true"] { background: var(--amber); border-color: var(--amber); color: #FFFFFF; }
+  .tab.tab-davet[aria-selected="true"]:hover { background: #7A5510; border-color: #7A5510; color: #FFFFFF; }
+  /* Genel :focus-visible kuralı border-radius'u 3px yapar; kutu biçimi korunur. */
+  #sosyolab .tab.tab-davet:focus-visible { border-radius: 8px; }
+  .tab-davet-yardim { margin: -10px 0 18px; font-size: 12.5px; color: var(--text-2); }
+
   .cta {
     margin-top: 28px;
     background: var(--ink);
@@ -1037,6 +1063,7 @@
     .auth-left { padding: 32px 20px; }
     .auth-right { padding: 28px 16px; }
     .auth-card { padding: 24px 20px 20px; border-radius: 8px; }
+    .tab.tab-davet { padding: 6px 12px; font-size: 13.5px; }
     .auth-copy h1 { font-size: 28px; }
     /* 100vw kullanilmaz: kaydirma cubugu genisligini de sayar ve dar
        ekranda yatay tasmaya yol acar. Kenarlara sabitlemek yeterli. */
