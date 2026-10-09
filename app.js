@@ -108,7 +108,11 @@
     fileText: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h6"/><path d="M16 13H8M16 17H8M10 9H8"/>',
     alignLeft: '<path d="M21 6H3M15 12H3M17 18H3"/>',
     clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/>',
-    library: '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>'
+    library: '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>',
+    brain: '<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M19.938 10.5a4 4 0 0 1 .585.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M19.967 17.484A4 4 0 0 1 18 18"/>',
+    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+    cards: '<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/>',
+    coffee: '<path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/>'
   };
 
   const svg = (d, cls) => '<svg class="icon ' + (cls || "") + '" viewBox="0 0 24 24" aria-hidden="true">' + d + "</svg>";
@@ -186,6 +190,32 @@
     { id: "pfd401", code: "PFD 401", name: "Özel Öğretim Yöntemleri", termId: GUZ, academicYear: AKADEMIK_YIL, semester: "fall", grade: 4, instructor: "Öğretim Elemanı K", courseType: null, room: null, schedule: null }
   ];
 
+  /* ============================================================
+     SOSYOKÜLTÜR — dönem, sınıf ve dersten bağımsız ana bölüm.
+     Sunucuda ayrı tablo yoktur: içerik public.materials içinde course_id
+     alanında "sk-<kategori>" ad alanıyla tutulur. Gerçek ders kimlikleri
+     (sosNNN, osdNNN, pfdNNN) bu ad alanıyla çakışmaz. Okuma RLS'i derse
+     bakmadığından görünürlük ders arşiviyle aynıdır; öğretim elemanı
+     teacher_has_course() nedeniyle bu kimliklere yükleyemez, diğer her
+     gönderi admin onayından geçer. Arayüzde ekleme yalnız admin'e açıktır.
+     ============================================================ */
+  const SOSYOKULTUR = [
+    { id: "sk-hap-bilgiler", ad: "Hap Bilgiler", tekil: "Hap Bilgi", eylem: "Oku", icon: I.zap,
+      aciklama: "Kısa, hızlı ve akılda kalıcı sosyoloji bilgileri." },
+    { id: "sk-kavram-kartlari", ad: "Kavram Kartları", tekil: "Kavram Kartı", eylem: "Oku", icon: I.cards,
+      aciklama: "Anomi, habitus, yabancılaşma, kültürel sermaye ve daha fazlası." },
+    { id: "sk-sosyologlar", ad: "Sosyologlar", tekil: "Sosyolog", eylem: "Oku", icon: I.users,
+      aciklama: "Önemli sosyologları, fikirlerini ve kavramlarını kısa anlatımlarla tanı." },
+    { id: "sk-gundelik-hayat", ad: "Günlük Hayatın Sosyolojisi", tekil: "Günlük Hayat", eylem: "Oku", icon: I.coffee,
+      aciklama: "Gündelik davranışların arkasındaki toplumsal dünyayı keşfet." },
+    { id: "sk-sinema", ad: "Sosyoloji + Sinema", tekil: "Film / Dizi", eylem: "Aç", icon: I.clapper,
+      aciklama: "Film ve dizileri sosyolojik kavramlarla yeniden oku." },
+    { id: "sk-mini-quiz", ad: "Mini Quiz", tekil: "Mini Quiz", eylem: "Başla", icon: I.messageQuestion,
+      aciklama: "Kısa sorularla sosyoloji bilgini test et." }
+  ];
+
+  const skKategori = (id) => SOSYOKULTUR.find((k) => k.id === id);
+
   /* Aşağıdaki kayıtların tamamı kurgusaldır: hiçbiri gerçek bir ders
      materyaline, dosyaya, bağlantıya ya da sınav evrakına karşılık gelmez.
      Yalnızca arayüzü doldurmak içindir. Gerçek kullanıma geçerken
@@ -216,7 +246,15 @@
     { id: "m18", ders: "sos341", tur: "ozet", baslik: "APA 7 kaynak gösterimi: hızlı başvuru", hafta: 3, meta: "PDF · 2 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-15", etiketler: ["APA", "Kaynakça"], aciklama: "Kitap, makale, tez ve internet kaynağı örnekleri." },
     { id: "m19", ders: "sos361", tur: "video", baslik: "Film çözümlemesi örneği: mekân ve sınıf", hafta: 5, meta: "41 dk", ekleyen: "Demo Öğrenci C", tarih: "2026-09-16", etiketler: ["Çözümleme", "Mekân"], aciklama: "Örnek çözümleme kaydı." },
     { id: "m20", ders: "sos101", tur: "ders-anlatimi", baslik: "Sosyolojik tahayyül nedir?", hafta: 1, meta: "26 dk", ekleyen: "Demo Öğrenci C", tarih: "2026-09-06", etiketler: ["Mills"], aciklama: "Örnek giriş anlatımı; yeni başlayanlar için." },
-    { id: "m21", ders: "sos101", tur: "kaynak", baslik: "Dönem okuma listesi", hafta: null, meta: "PDF · 2 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-04", etiketler: ["Okuma listesi"], aciklama: "Zorunlu ve önerilen okumalar ayrı ayrı." }
+    { id: "m21", ders: "sos101", tur: "kaynak", baslik: "Dönem okuma listesi", hafta: null, meta: "PDF · 2 sayfa", ekleyen: "Demo Öğrenci B", tarih: "2026-09-04", etiketler: ["Okuma listesi"], aciklama: "Zorunlu ve önerilen okumalar ayrı ayrı." },
+
+    /* SosyoKültür örnekleri: yalnız demo modunda görünür, sunucuya gönderilmez. */
+    { id: "m22", ders: "sk-hap-bilgiler", tur: "ozet", baslik: "Goffman ve Medeni Kayıtsızlık", hafta: null, meta: "Örnek içerik", ekleyen: "Demo Moderatör", tarih: "2026-09-23", etiketler: ["Goffman"], aciklama: "Kalabalıkta yabancılara gösterdiğimiz kibar ilgisizlik neden bir toplumsal kuraldır?" },
+    { id: "m23", ders: "sk-kavram-kartlari", tur: "ozet", baslik: "Anomi Nedir?", hafta: null, meta: "Örnek içerik", ekleyen: "Demo Moderatör", tarih: "2026-09-22", etiketler: ["Durkheim", "Anomi"], aciklama: "Durkheim'ın normsuzluk kavramı tek kartta." },
+    { id: "m24", ders: "sk-sosyologlar", tur: "kaynak", baslik: "Erving Goffman", hafta: null, meta: "Örnek içerik", ekleyen: "Demo Moderatör", tarih: "2026-09-21", etiketler: ["Goffman"], aciklama: "Dramaturjik yaklaşım, damga ve toplam kurumlar." },
+    { id: "m25", ders: "sk-gundelik-hayat", tur: "ozet", baslik: "Asansörde neden herkes kapıya bakar?", hafta: null, meta: "Örnek içerik", ekleyen: "Demo Moderatör", tarih: "2026-09-20", etiketler: ["Gündelik hayat"], aciklama: "Küçük bir mekânda mahremiyeti koruyan sessiz ritüeller." },
+    { id: "m26", ders: "sk-sinema", tur: "video", baslik: "The Truman Show — Gözetim ve Toplumsal Kontrol", hafta: null, meta: "Örnek içerik", ekleyen: "Demo Moderatör", tarih: "2026-09-19", etiketler: ["Gözetim"], aciklama: "Film üzerinden gözetim toplumu ve rıza üretimi." },
+    { id: "m27", ders: "sk-mini-quiz", tur: "soru-cevap", baslik: "Bu kavram hangi sosyoloğa ait?", hafta: null, meta: "Örnek içerik", ekleyen: "Demo Moderatör", tarih: "2026-09-18", etiketler: ["Quiz"], aciklama: "Beş kısa soruluk kavram–sosyolog eşleştirmesi." }
   ];
   /* ---------- davet kodu doğrulaması ----------
      006: username/password kayıt ve giriş Edge Function sınırından geçer
@@ -257,6 +295,7 @@
     sonGoruntulenen: [],
     gorunum: "panel",
     dersId: null,
+    skId: null,
     kategori: "tumu",
     dersArama: "",
     sirala: "yeni",
@@ -320,6 +359,24 @@
   const donemBul = (id) => DONEMLER.find((d) => d.id === id) || {};
   const donemAd = (id) => donemBul(id).kisa || "";
   const dersMateryal = (id) => state.materyaller.filter((m) => m.ders === id);
+  /* Ders arşivi sayımları ve listeleri SosyoKültür içeriğini kapsamaz. */
+  const arsivMateryali = () => state.materyaller.filter((m) => !skKategori(m.ders));
+
+  /* Gönderi/inceleme satırlarında ders ya da SosyoKültür kategorisi. */
+  function kaynakEtiketi(id) {
+    const c = dersBul(id);
+    if (c) return c.code + " · " + c.name;
+    const k = skKategori(id);
+    return k ? "SosyoKültür · " + k.ad : String(id || "");
+  }
+
+  /* SosyoKültür içeriği materyal türü yerine kategorisiyle gösterilir. */
+  function turBilgisi(m) {
+    const k = skKategori(m.ders);
+    if (k) return { ad: k.tekil, icon: k.icon, veri: "sosyokultur" };
+    const t = TURLER[m.tur] || TURLER["ders-notu"];
+    return { ad: t.ad, icon: t.icon, veri: m.tur };
+  }
 
   function ogretmenDersineAtandiMi(dersId) {
     return !!dersId && state.ogretmenDersleri.indexOf(dersId) > -1;
@@ -422,7 +479,7 @@
     const hafta = Number(m.hafta);
     return {
       id: m.id,
-      ders: dersBul(m.ders) ? m.ders : "",
+      ders: dersBul(m.ders) || skKategori(m.ders) ? m.ders : "",
       tur: TURLER[m.tur] ? m.tur : "ders-notu",
       baslik: m.baslik,
       hafta: hafta >= 1 && hafta <= 30 ? hafta : null,
@@ -1240,8 +1297,9 @@
   /* ---------- kenar çubuğu ---------- */
 
   function kenarCubugu() {
+    const arsiv = arsivMateryali();
     const tally = {};
-    state.materyaller.forEach((m) => { tally[m.ekleyen] = (tally[m.ekleyen] || 0) + 1; });
+    arsiv.forEach((m) => { tally[m.ekleyen] = (tally[m.ekleyen] || 0) + 1; });
     const enler = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3);
     const harf = (state.oturum.ad || "?").trim().charAt(0).toUpperCase() || "?";
 
@@ -1276,12 +1334,24 @@
 
           <p class="sb-section">2026–2027 AKADEMİK YILI</p>
           ${DONEMLER.map(donemBlogu).join("")}
+
+          <div class="sb-sk">
+            <button class="sb-link sb-sk-ana" data-action="sosyokultur" aria-current="${state.gorunum === "sosyokultur" && !state.skId}">
+              ${svg(I.brain)} SosyoKültür
+            </button>
+            ${SOSYOKULTUR.map((k) => {
+              const n = dersMateryal(k.id).length;
+              return `<button class="sb-course" data-action="sk-kategori" data-id="${k.id}" aria-current="${state.gorunum === "sosyokultur" && state.skId === k.id}">
+                <span>${esc(k.ad)}</span>${n ? `<em>${n}</em>` : ""}
+              </button>`;
+            }).join("")}
+          </div>
         </nav>
 
         <div class="sb-foot">
           <div class="contrib">
             <b>TOPLULUĞA KATKI</b>
-            <div class="contrib-row"><span>Bu dönem</span><span>${state.materyaller.length} materyal</span></div>
+            <div class="contrib-row"><span>Bu dönem</span><span>${arsiv.length} materyal</span></div>
             <div class="contrib-row"><span>Katkı veren</span><span>${Object.keys(tally).length} öğrenci</span></div>
             ${enler.map(([k, n]) => `<div class="contrib-row"><span>${esc(k)}</span><span>${n}</span></div>`).join("")}
           </div>
@@ -1361,6 +1431,12 @@
     if (state.gorunum === "basvurular") {
       return '<button data-action="panel">Bölüm Arşivi</button><span class="sep">/</span><span class="now">Öğretim Elemanı Başvuruları</span>';
     }
+    if (state.gorunum === "sosyokultur") {
+      const k = skKategori(state.skId);
+      return k
+        ? `<button data-action="sosyokultur">SosyoKültür</button><span class="sep">/</span><span class="now">${esc(k.ad)}</span>`
+        : '<span class="now">SosyoKültür</span>';
+    }
     if (state.gorunum === "ders") {
       const c = dersBul(state.dersId);
       if (c) {
@@ -1376,10 +1452,11 @@
   /* ---------- gösterge panosu ---------- */
 
   function panelGorunumu() {
-    const sonEklenen = state.materyaller.slice().sort((a, b) => b.tarih.localeCompare(a.tarih)).slice(0, 6);
+    const arsiv = arsivMateryali();
+    const sonEklenen = arsiv.slice().sort((a, b) => b.tarih.localeCompare(a.tarih)).slice(0, 6);
 
     const dersSon = {};
-    state.materyaller.forEach((m) => {
+    arsiv.forEach((m) => {
       if (!dersSon[m.ders] || m.tarih > dersSon[m.ders]) dersSon[m.ders] = m.tarih;
     });
     const guncelDersler = Object.entries(dersSon).sort((a, b) => b[1].localeCompare(a[1])).slice(0, 4);
@@ -1388,7 +1465,7 @@
       .map((id) => state.materyaller.find((m) => m.id === id))
       .filter(Boolean).slice(0, 3);
 
-    const katkiVeren = new Set(state.materyaller.map((m) => m.ekleyen)).size;
+    const katkiVeren = new Set(arsiv.map((m) => m.ekleyen)).size;
 
     return `
       <div class="content">
@@ -1397,7 +1474,7 @@
           <h1 class="page-title">2026–2027 Akademik Yılı</h1>
           <p class="page-sub">Soldan dönem ve sınıf seçerek derse in, ya da yukarıdan ara.</p>
           <div class="stat-line">
-            <span><b>${state.materyaller.length}</b> materyal</span>
+            <span><b>${arsiv.length}</b> materyal</span>
             <span><b>${DERSLER.length}</b> ders</span>
             <span><b>${katkiVeren}</b> katkı veren öğrenci</span>
           </div>
@@ -1664,22 +1741,90 @@
 
   /* ---------- materyal satırı ---------- */
 
+  /* ---------- SosyoKültür ---------- */
+
+  function sosyokulturGorunumu() {
+    const k = skKategori(state.skId);
+    if (k) return skKategoriGorunumu(k);
+    return `
+      <div class="content">
+        <div class="page-head sk-head">
+          <p class="eyebrow">${svg(I.brain, "icon-sm")} DERSLERİN DIŞINDA</p>
+          <h1 class="page-title"><span class="sk-baslik-ikon">${svg(I.brain)}</span>SosyoKültür</h1>
+          <p class="sk-slogan">Derslerin dışında da sosyoloji var.</p>
+          <p class="page-sub">Gündelik hayatı, kavramları, sosyologları ve popüler kültürü sosyolojik bir gözle keşfet.</p>
+        </div>
+        <div class="cards sk-kartlar">
+          ${SOSYOKULTUR.map((kat) => {
+            const n = dersMateryal(kat.id).length;
+            return `<button class="card sk-kart" data-action="sk-kategori" data-id="${kat.id}">
+              <span class="sk-kart-ikon">${svg(kat.icon)}</span>
+              <h3>${esc(kat.ad)}</h3>
+              <p>${esc(kat.aciklama)}</p>
+              <span class="sk-kart-alt">
+                <span class="sk-sayi">${n ? n + " içerik" : "Yakında"}</span>
+                <span class="sk-eylem">Keşfet ${svg(I.chevronRight, "icon-sm")}</span>
+              </span>
+            </button>`;
+          }).join("")}
+        </div>
+      </div>`;
+  }
+
+  function skKategoriGorunumu(k) {
+    const liste = dersMateryal(k.id).slice().sort((a, b) => b.tarih.localeCompare(a.tarih));
+    const ekleyebilir = yetkili() && paylasimAcikMi();
+    return `
+      <div class="content">
+        <div class="page-head sk-head">
+          <p class="eyebrow">${svg(I.brain, "icon-sm")} SOSYOKÜLTÜR</p>
+          <h1 class="page-title">${esc(k.ad)}</h1>
+          <p class="page-sub">${esc(k.aciklama)}</p>
+          <div class="stat-line"><span>${svg(k.icon, "icon-sm")} <b>${liste.length}</b> içerik</span></div>
+        </div>
+        ${liste.length
+          ? `<div class="cards sk-kartlar">${liste.map((m) => skIcerikKarti(m, k)).join("")}</div>`
+          : `<div class="empty">${svg(k.icon, "icon-lg")}
+               <strong>Bu kategoride henüz içerik yok.</strong>
+               <p>${ekleyebilir
+                    ? "Materyal Paylaş ile bu kategoriye içerik ekleyebilirsin; onayladığın içerikler burada görünür."
+                    : "Yeni içerikler eklendikçe burada görünecek."}</p>
+               ${ekleyebilir ? `<button class="btn" data-action="paylas-ac">${svg(I.plus, "icon-sm")} Materyal Paylaş</button>` : ""}
+             </div>`}
+      </div>`;
+  }
+
+  /* İçerik kartı mevcut detay çekmecesini açar; dosya bağlantısı orada
+     imzalı olarak üretilir. */
+  function skIcerikKarti(m, k) {
+    return `<button class="card sk-icerik" data-action="materyal" data-id="${esc(m.id)}">
+      <span class="sk-tur">${svg(k.icon, "icon-sm")} ${esc(k.tekil)}</span>
+      <h3>${esc(m.baslik)}</h3>
+      ${m.aciklama ? `<p class="sk-ozet">${esc(m.aciklama)}</p>` : ""}
+      <span class="sk-kart-alt">
+        <span class="sk-sayi">${esc(tarihYaz(m.tarih))}</span>
+        <span class="sk-eylem">${esc(k.eylem)} ${svg(I.chevronRight, "icon-sm")}</span>
+      </span>
+    </button>`;
+  }
+
   function materyalSatiri(m) {
-    const t = TURLER[m.tur] || TURLER["ders-notu"];
+    const t = turBilgisi(m);
     const c = dersBul(m.ders);
+    const sk = skKategori(m.ders);
     const fav = state.favoriler.indexOf(m.id) > -1;
     const alt = ['<span class="kind">' + esc(t.ad) + "</span>",
       m.hafta ? m.hafta + ". Hafta" : null,
       m.meta ? esc(m.meta) : null].filter(Boolean).join(" · ");
 
     return `
-      <div class="mat" data-tur="${esc(m.tur)}">
+      <div class="mat" data-tur="${esc(t.veri)}">
         <button class="mat-open" data-action="materyal" data-id="${esc(m.id)}">
           <span class="mat-icon">${svg(t.icon)}</span>
           <span class="mat-body">
             <span class="mat-title">${esc(m.baslik)}${buHafta(m.tarih) ? '<span class="tag-new">Bu hafta</span>' : ""}</span>
             <span class="mat-sub">${alt}</span>
-            <span class="mat-by">${c ? esc(c.code) + " · " : ""}${esc(m.ekleyen)} ekledi · ${esc(tarihYaz(m.tarih))}</span>
+            <span class="mat-by">${c ? esc(c.code) + " · " : sk ? "SosyoKültür · " : ""}${esc(m.ekleyen)} ekledi · ${esc(tarihYaz(m.tarih))}</span>
           </span>
         </button>
         <button class="mat-fav" data-action="favori" data-id="${esc(m.id)}" aria-pressed="${fav}"
@@ -1694,14 +1839,16 @@
   function cekmece() {
     const m = state.materyaller.find((x) => x.id === state.secili);
     if (!m) return "";
-    const t = TURLER[m.tur] || TURLER["ders-notu"];
+    const t = turBilgisi(m);
     const c = dersBul(m.ders);
+    const sk = skKategori(m.ders);
     const fav = state.favoriler.indexOf(m.id) > -1;
     const silebilir = yetkili();
+    const acMetni = sk ? sk.eylem : "Materyali aç";
 
     return `
       <div class="scrim" data-action="kapat"></div>
-      <aside class="drawer" data-tur="${esc(m.tur)}" role="dialog" aria-modal="true" aria-labelledby="cekmece-baslik">
+      <aside class="drawer" data-tur="${esc(t.veri)}" role="dialog" aria-modal="true" aria-labelledby="cekmece-baslik">
         <div class="drawer-top">
           <span class="kind-tag">${svg(t.icon, "icon-sm")} ${esc(t.ad)}</span>
           <span class="drawer-tools">
@@ -1715,8 +1862,11 @@
         ${m.aciklama ? `<p class="note">${esc(m.aciklama)}</p>` : ""}
 
         <div class="facts">
-          <div><span>Ders</span><span>${c ? esc(c.code) + " · " + esc(c.name) : "—"}</span></div>
-          <div><span>Dönem</span><span>${c ? esc(donemAd(c.termId)) + " · " + c.grade + ". Sınıf" : "—"}</span></div>
+          ${sk
+            ? `<div><span>Bölüm</span><span>SosyoKültür</span></div>
+               <div><span>Kategori</span><span>${esc(sk.ad)}</span></div>`
+            : `<div><span>Ders</span><span>${c ? esc(c.code) + " · " + esc(c.name) : "—"}</span></div>
+               <div><span>Dönem</span><span>${c ? esc(donemAd(c.termId)) + " · " + c.grade + ". Sınıf" : "—"}</span></div>`}
           ${m.hafta ? `<div><span>Hafta</span><span>${m.hafta}. Hafta</span></div>` : ""}
           <div><span>Dosya</span><span>${esc(m.meta || "belirtilmemiş")}</span></div>
           <div><span>Ekleyen</span><span>${esc(m.ekleyen)}</span></div>
@@ -1728,11 +1878,11 @@
         ${m.depoYolu
           ? `<button class="link-btn" data-action="dosya-ac" data-id="${esc(m.id)}"${state.indiriliyor ? " disabled" : ""}>
                ${state.indiriliyor ? '<span class="spinner"></span> Bağlantı hazırlanıyor…'
-                 : svg(I.external, "icon-sm") + " Materyali aç"}
+                 : svg(I.external, "icon-sm") + " " + esc(acMetni)}
              </button>
              <p class="form-hint">Bağlantı kişiye özel üretilir ve 5 dakika sonra geçersiz olur.</p>`
           : m.url
-            ? `<a class="link-btn" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svg(I.external, "icon-sm")} Materyali aç</a>`
+            ? `<a class="link-btn" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svg(I.external, "icon-sm")} ${esc(acMetni)}</a>`
             : '<p class="soft-note">Bu materyalin dosyası henüz yüklenmemiş.</p>'}
 
         ${silebilir
@@ -1757,6 +1907,10 @@
       ? "Atandığın derslerdeki gönderilerin doğrudan arşivde yayınlanır."
       : "Gönderin admin incelemesinden geçtikten sonra arşivde yayınlanır.";
     const gonderMetni = ogretmenMi() ? "Yayımla" : "İncelemeye Gönder";
+    /* SosyoKültür seçimi yalnız admin'e gösterilir; SosyoKültür sayfasından
+       açılırsa o kategori önceden seçilir. */
+    const skSecili = yetkili() && state.gorunum === "sosyokultur";
+    const skVarsayilan = skKategori(state.skId) ? state.skId : SOSYOKULTUR[0].id;
 
     return `
       <div class="scrim" data-action="kapat"></div>
@@ -1766,6 +1920,24 @@
         ${state.paylasHata ? `<p class="form-error" role="alert">${esc(state.paylasHata)}</p>` : ""}
 
         <div class="grid-2">
+          ${yetkili() ? `
+          <div class="field wide">
+            <label for="p-bolum">Bölüm</label>
+            <select class="input" id="p-bolum">
+              <option value="arsiv"${skSecili ? "" : " selected"}>Ders arşivi</option>
+              <option value="sosyokultur"${skSecili ? " selected" : ""}>SosyoKültür</option>
+            </select>
+          </div>
+          <div class="alan-grup" id="p-sk-grup"${skSecili ? "" : " hidden"}>
+            <div class="field wide">
+              <label for="p-sk">Kategori</label>
+              <select class="input" id="p-sk">
+                ${SOSYOKULTUR.map(function (k) {
+                  return `<option value="${k.id}"${k.id === skVarsayilan ? " selected" : ""}>${esc(k.ad)}</option>`; }).join("")}
+              </select>
+            </div>
+          </div>` : ""}
+          <div class="alan-grup" id="p-ders-grup"${skSecili ? " hidden" : ""}>
           ${ogretmenMi() ? "" : `
           <div class="field">
             <label for="p-donem">Dönem</label>
@@ -1791,6 +1963,7 @@
                     ? '<option value="">Atanmış dersin bulunmuyor</option>'
                     : '<option value="">Bu dönem ve sınıfta ders yok</option>')}
             </select>
+          </div>
           </div>
           <div class="field wide">
             <label for="p-baslik">Materyal başlığı</label>
@@ -1824,15 +1997,20 @@
   async function paylasimGonder() {
     if (state.paylasGonderiliyor) return;
     if (ogretmenBasvurusuKisitliMi()) return paylasHata("Başvuru durumun materyal yüklemeye izin vermiyor.");
-    const ders = document.getElementById("p-ders").value;
+    const bolum = document.getElementById("p-bolum");
+    const skMi = !!bolum && bolum.value === "sosyokultur";
+    if (skMi && !yetkili()) return paylasHata("SosyoKültür içeriğini yalnızca yönetici ekleyebilir.");
+    const ders = document.getElementById(skMi ? "p-sk" : "p-ders").value;
     const baslik = (document.getElementById("p-baslik").value || "").trim();
     const aciklama = (document.getElementById("p-aciklama").value || "").trim();
     const tur = document.getElementById("p-tur").value;
     const alan = document.getElementById("p-dosya");
     const dosya = alan && alan.files && alan.files[0];
 
-    if (!ders) return paylasHata("Bir ders seç.");
-    if (!dersBul(ders)) return paylasHata("Seçilen ders tanınmıyor.");
+    if (!ders) return paylasHata(skMi ? "Bir kategori seç." : "Bir ders seç.");
+    if (skMi ? !skKategori(ders) : !dersBul(ders)) {
+      return paylasHata(skMi ? "Seçilen kategori tanınmıyor." : "Seçilen ders tanınmıyor.");
+    }
     if (ogretmenMi() && !ogretmenDersineAtandiMi(ders)) return paylasHata("Bu derse materyal paylaşma yetkin yok.");
     if (!baslik) return paylasHata("Materyalin bir başlığa ihtiyacı var.");
     const d = dosyaDogrula(dosya);
@@ -1850,6 +2028,8 @@
     ciz();
     if (ogretmenMi()) {
       bildir("Materyal yayımlandı.");
+    } else if (skMi) {
+      bildir("İçerik onay kuyruğuna eklendi. Onay Bekleyenler'den onayladığında SosyoKültür'de yayınlanır.");
     } else {
       bildir("Materyalin incelemeye gönderildi. Admin onayından sonra arşivde yayınlanacak.");
     }
@@ -1883,14 +2063,13 @@
   }
 
   function gonderiSatiri(g) {
-    const c = dersBul(g.course_id);
     const durum = DURUM_ETIKET[g.status] || "İnceleniyor";
     const tur = PAYLASIM_TURLERI.filter(function (t) { return t.id === g.material_type; })[0];
     return `
       <div class="inceleme">
         <span class="durum durum-${esc(g.status)}">${esc(durum)}</span>
         <h3 class="gonderi-baslik">${esc(g.title)}</h3>
-        <p class="alt">${c ? esc(c.code) + " · " + esc(c.name) : esc(g.course_id)}${tur ? " · " + esc(tur.ad) : ""}</p>
+        <p class="alt">${esc(kaynakEtiketi(g.course_id))}${tur ? " · " + esc(tur.ad) : ""}</p>
         <p class="alt">${esc(gosterimAdi(g.file_name))} · ${esc(String(g.created_at || "").slice(0, 10))}</p>
         ${g.status === "rejected" && g.rejection_reason
           ? `<p class="aciklama"><strong>Ret gerekçesi:</strong> ${esc(g.rejection_reason)}</p>` : ""}
@@ -1960,7 +2139,6 @@
   }
 
   function bekleyenKarti(g) {
-    const c = dersBul(g.course_id);
     const tur = PAYLASIM_TURLERI.filter(function (t) { return t.id === g.material_type; })[0];
     const yukleyen = (g.profiles && g.profiles.display_name) || "Bilinmiyor";
     const no = (g.profiles && g.profiles.username) || "";
@@ -1969,7 +2147,7 @@
     return `
       <div class="inceleme" data-gonderi="${esc(g.id)}">
         <h3>${esc(g.title)}</h3>
-        <p class="alt">${c ? esc(c.code) + " · " + esc(c.name) : esc(g.course_id)}${tur ? " · " + esc(tur.ad) : ""}</p>
+        <p class="alt">${esc(kaynakEtiketi(g.course_id))}${tur ? " · " + esc(tur.ad) : ""}</p>
         <p class="alt">${esc(yukleyen)}${no ? " · " + esc(no) : ""} · ${esc(String(g.created_at || "").slice(0, 10))}</p>
         <p class="alt">${esc(gosterimAdi(g.file_name))}</p>
         ${g.description ? `<p class="aciklama">${esc(g.description)}</p>` : ""}
@@ -2106,11 +2284,12 @@
               <div><strong>${esc(c.name)}</strong><small>${esc(c.code)} · ${esc(donemAd(c.termId))} · ${c.grade}. Sınıf</small></div>
             </button>`).join("") : ""}
           ${matSonuc.length ? '<p class="cmd-group">MATERYALLER</p>' + matSonuc.map((m) => {
-            const t = TURLER[m.tur] || TURLER["ders-notu"];
+            const t = turBilgisi(m);
             const c = dersBul(m.ders);
+            const sk = skKategori(m.ders);
             return `<button class="cmd-item" data-action="materyal" data-id="${esc(m.id)}">
               ${svg(t.icon, "icon-sm")}
-              <div><strong>${esc(m.baslik)}</strong><small>${esc(t.ad)}${c ? " · " + esc(c.code) : ""} · ${esc(m.ekleyen)}</small></div>
+              <div><strong>${esc(m.baslik)}</strong><small>${esc(t.ad)}${c ? " · " + esc(c.code) : sk ? " · SosyoKültür" : ""} · ${esc(m.ekleyen)}</small></div>
             </button>`;
           }).join("") : ""}
           ${bos ? '<p class="cmd-empty">Eşleşen sonuç yok. Başka bir kelime deneyebilirsin.</p>' : ""}
@@ -2144,6 +2323,7 @@
       : state.gorunum === "gonderilerim" ? gonderilerimGorunumu()
       : state.gorunum === "onay" ? onayGorunumu()
       : state.gorunum === "basvurular" ? ogretmenBasvurulariGorunumu()
+      : state.gorunum === "sosyokultur" ? sosyokulturGorunumu()
       : panelGorunumu());
 
     const katman = state.katman === "paylas" ? paylasKatmani()
@@ -2263,6 +2443,15 @@
     if (action === "panel") { state.gorunum = "panel"; state.dersId = null; state.katman = null; state.sidebarAcik = false; return ciz(); }
     if (action === "favoriler") { state.gorunum = "favoriler"; state.katman = null; state.sidebarAcik = false; return ciz(); }
 
+    /* SosyoKültür dönem/sınıf seçimine (state.nav) dokunmaz. */
+    if (action === "sosyokultur" || action === "sk-kategori") {
+      const skId = action === "sk-kategori" ? hedef.dataset.id : null;
+      if (skId && !skKategori(skId)) return;
+      state.gorunum = "sosyokultur"; state.skId = skId; state.dersId = null;
+      state.katman = null; state.secili = null; state.sidebarAcik = false;
+      return ciz();
+    }
+
     if (action === "gonderilerim") {
       state.gorunum = "gonderilerim"; state.katman = null; state.sidebarAcik = false;
       if (BULUT.etkin) state.gonderiler = await gonderilerimiGetir();
@@ -2379,6 +2568,15 @@
     }
     if (e.target.id === "aramaGiris") { state.aramaSorgu = e.target.value; return ciz(); }
     if (e.target.id === "sirala") { state.sirala = e.target.value; return ciz(); }
+    /* Bölüm seçimi formu yeniden çizmez: girilen başlık ve seçilen dosya korunur. */
+    if (e.target.id === "p-bolum") {
+      const sk = e.target.value === "sosyokultur";
+      const skGrup = document.getElementById("p-sk-grup");
+      const dersGrup = document.getElementById("p-ders-grup");
+      if (skGrup) skGrup.hidden = !sk;
+      if (dersGrup) dersGrup.hidden = sk;
+      return;
+    }
     if (e.target.dataset && e.target.dataset.kapsam2) {
       if (ogretmenMi()) return;
       const donem = document.getElementById("p-donem").value;
