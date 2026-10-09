@@ -956,7 +956,7 @@
           <div class="auth-card">
             <div class="tabs" role="tablist" aria-label="Kimlik doğrulama sekmeleri">
               <button class="tab" role="tab" data-action="auth-sekme" data-sekme="giris" aria-selected="${girisAktif}" tabindex="${girisAktif ? "0" : "-1"}">Giriş Yap</button>
-              <button class="tab" role="tab" data-action="auth-sekme" data-sekme="kayit" aria-selected="${!girisAktif}" tabindex="${!girisAktif ? "0" : "-1"}">Kayıt Ol</button>
+              <button class="tab" role="tab" data-action="auth-sekme" data-sekme="kayit" aria-selected="${!girisAktif}" tabindex="${!girisAktif ? "0" : "-1"}">Davet Koduyla Kayıt Ol</button>
             </div>
             <h2>${girisAktif ? "Arşive giriş" : "Yeni hesap oluştur"}</h2>
             <p class="lede">${girisAktif
@@ -976,35 +976,35 @@
                      autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go">
             </div>
             <button class="btn-primary" type="button" data-action="giris"${state.girisDeneniyor ? " disabled" : ""}>${
-              state.girisDeneniyor ? '<span class="spinner"></span> Kontrol ediliyor…' : "Giriş Yap"}</button>
+              state.girisDeneniyor ? '<span class="spinner"></span> Kontrol ediliyor…' : "Arşive Gir"}</button>
             ` : `
-            <div class="field">
-              <label for="kayit-kullanici">Kullanıcı adı</label>
-              <input class="input" id="kayit-kullanici" type="text" maxlength="24" autocomplete="username"
-                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
-            </div>
-            <div class="field">
-              <label for="kayit-sifre">Parola</label>
-              <input class="input" id="kayit-sifre" type="password" maxlength="128" autocomplete="new-password"
-                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
-            </div>
-            <div class="field">
-              <label for="kayit-sifre-tekrar">Parola (tekrar)</label>
-              <input class="input" id="kayit-sifre-tekrar" type="password" maxlength="128" autocomplete="new-password"
-                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
-            </div>
             <div class="field">
               <label for="kayit-davet">Davet kodu</label>
               <input class="input" id="kayit-davet" type="text" maxlength="64" autocomplete="off"
                      autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next">
             </div>
             <div class="field">
-              <label for="kayit-adsoyad">Ad Soyad (teacher kodu için zorunlu)</label>
+              <label for="kayit-kullanici">Kullanıcı adı</label>
+              <input class="input" id="kayit-kullanici" type="text" maxlength="24" autocomplete="username"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="field">
+              <label for="kayit-adsoyad">Ad Soyad (öğretim elemanı davetinde zorunlu)</label>
               <input class="input" id="kayit-adsoyad" type="text" maxlength="80" autocomplete="name"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="field">
+              <label for="kayit-sifre">Parola</label>
+              <input class="input" id="kayit-sifre" type="password" maxlength="72" autocomplete="new-password"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="field">
+              <label for="kayit-sifre-tekrar">Parola (tekrar)</label>
+              <input class="input" id="kayit-sifre-tekrar" type="password" maxlength="72" autocomplete="new-password"
                      autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go">
             </div>
             <button class="btn-primary" type="button" data-action="kayit-ol"${state.kayitGonderiliyor ? " disabled" : ""}>${
-              state.kayitGonderiliyor ? '<span class="spinner"></span> Hesap oluşturuluyor…' : "Kayıt Ol"}</button>
+              state.kayitGonderiliyor ? '<span class="spinner"></span> Hesap oluşturuluyor…' : "Hesap Oluştur"}</button>
             `}
             <p class="auth-foot">Bölüm öğrencileri, öğretim elemanları ve yöneticiler için.</p>
             <p class="auth-demo">Kimlik doğrulama ve materyal işlemleri sunucu tarafındaki kurallarla korunur.</p>
@@ -1119,6 +1119,8 @@
       return hataGoster("Bu kullanıcı adı kullanılamaz.", "kayit-kullanici");
     }
     if (sifre.length < 8) return hataGoster("Parola en az 8 karakter olmalı.", "kayit-sifre");
+    /* kayit Edge Function 72'den uzun parolayı reddeder (bcrypt sınırı). */
+    if (sifre.length > 72) return hataGoster("Parola en fazla 72 karakter olabilir.", "kayit-sifre");
     if (sifre !== sifreTekrar) return hataGoster("Parolalar eşleşmiyor.", "kayit-sifre-tekrar");
     if (!davetKodu) return hataGoster("Davet kodunu gir.", "kayit-davet");
 
