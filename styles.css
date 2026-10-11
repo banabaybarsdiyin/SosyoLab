@@ -78,6 +78,7 @@
     background: var(--ivory);
     line-height: 1.5;
     min-height: 100vh;
+    min-height: 100dvh;
     -webkit-font-smoothing: antialiased;
     font-size: 15px;
   }
@@ -106,7 +107,7 @@
 
   /* ================= GİRİŞ ================= */
 
-  .auth { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 100vh; }
+  .auth { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 100vh; min-height: 100dvh; }
 
   .auth-left {
     background: var(--ink);
@@ -254,7 +255,7 @@
 
   /* ================= KABUK ================= */
 
-  .app { display: grid; grid-template-columns: 274px 1fr; min-height: 100vh; }
+  .app { display: grid; grid-template-columns: 274px 1fr; min-height: 100vh; min-height: 100dvh; }
 
   .sidebar {
     background: var(--ink);
@@ -264,6 +265,8 @@
     position: sticky;
     top: 0;
     height: 100vh;
+    /* Mobil tarayıcı çubukları: dinamik görünür yükseklik; alt kısım (çıkış) kesilmez. */
+    height: 100dvh;
     overflow: hidden;
   }
 
@@ -927,7 +930,9 @@
     .auth-copy h1 { font-size: 34px; max-width: none; }
   }
 
-  @media (max-width: 900px) {
+  /* Yatay telefon (ör. 915×412, 932×430) 900 px'i aşsa da dokunmatik ve
+     kısa ekranda mobil yerleşimi kullanır; fareli masaüstü etkilenmez. */
+  @media (max-width: 900px), (max-height: 500px) and (pointer: coarse) {
     .app { grid-template-columns: 1fr; }
     .sidebar {
       position: fixed; top: 0; left: 0; bottom: 0;
@@ -1094,19 +1099,25 @@
     .auth-left { padding: 32px 20px; }
     .auth-right { padding: 28px 16px; }
     .auth-card { padding: 24px 20px 20px; border-radius: 8px; }
-    .tab.tab-davet { padding: 6px 12px; font-size: 13.5px; }
+    .tab.tab-davet { padding: 9px 12px; font-size: 13.5px; }
     .auth-copy h1 { font-size: 28px; }
     /* 100vw kullanilmaz: kaydirma cubugu genisligini de sayar ve dar
        ekranda yatay tasmaya yol acar. Kenarlara sabitlemek yeterli. */
-    .drawer { left: 0; right: 0; width: auto; padding: 18px 16px 24px; }
-    .modal { left: 0; right: 0; width: auto; top: 0; transform: none; max-height: 100vh; border-radius: 0; padding: 18px 16px 22px; }
-    .cmd { left: 0; right: 0; width: auto; top: 0; border-radius: 0; }
-    .cmd-results { max-height: calc(100vh - 56px); }
+    .drawer { left: 0; right: 0; width: auto; padding: 18px 16px 24px; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+    .modal { left: 0; right: 0; width: auto; top: 0; transform: none; max-height: 100vh; max-height: 100dvh; border-radius: 0; padding: 18px 16px 22px; padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+    /* transform sıfırlanır: masaüstündeki translateX(-50%) tam genişlikte paneli
+       yarı yarıya ekran dışına itiyordu (modal'da sıfırlanmıştı, burada eksikti). */
+    .cmd { left: 0; right: 0; width: auto; top: 0; transform: none; border-radius: 0; }
+    .cmd-results { max-height: calc(100vh - 56px); max-height: calc(100dvh - 56px); }
     .content { padding: 18px 16px 48px; }
     .topbar { padding: 10px 12px; gap: 10px; }
     .cta { padding: 20px 18px; }
     .cta h2 { font-size: 22px; }
     .cards { grid-template-columns: 1fr; }
+    /* Kırıntı yolu: dar ekranda yalnız bir üst düzey ve bulunulan sayfa
+       (tam yol menüde zaten var); üst bar tek satırda kalır. */
+    .crumbs > :not(.now) { display: none; }
+    .crumbs > button:has(+ .sep + .now), .crumbs > .sep:has(+ .now) { display: inline-flex; align-items: center; }
     .modal-actions { flex-direction: column-reverse; }
     .modal-actions .btn { width: 100%; justify-content: center; }
     .inceleme { padding: 14px 14px; }
@@ -1123,7 +1134,58 @@
     .cat { padding: 6px 10px; font-size: 13px; }
   }
 
-  /* Hiçbir genişlikte yatay kaydırma olmasın. */
+  /* --- dokunmatik ekranlar (≤ 900 px): rahat dokunma alanı ve iOS odak
+     yakınlaştırmasının önlenmesi. Masaüstü (> 900 px) değişmez. --- */
+  /* Masaüstünde menü hep açık: kapatma düğmesi yalnız mobil blokta görünür. */
+  .sb-kapat { display: none; }
+
+  @media (max-width: 900px), (max-height: 500px) and (pointer: coarse) {
+    /* iOS Safari 16 px altındaki alanlara odaklanınca sayfayı yakınlaştırır. */
+    #sosyolab .input, #sosyolab .select, #sosyolab select, #sosyolab textarea { font-size: 16px; }
+    /* Dokunma hedefi en az 44 px (Apple HIG / WCAG 2.5.5). */
+    .mat-fav { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; }
+    .mat > .mat-fav { margin: 6px 2px 0 0; }
+    /* Çekmece başlığındaki kaydet düğmesi liste satırı boşluğunu devralıp
+       kapat düğmesinden aşağıda duruyordu; başlıkta hizalanır. */
+    .drawer-tools .mat-fav { margin: 0; }
+    .x-btn { width: 44px; height: 44px; }
+    .icon-btn { min-width: 44px; min-height: 44px; place-items: center; }
+    .search-trigger, .topbar .btn { min-width: 44px; min-height: 44px; justify-content: center; }
+    .btn, .tab, .cat, #sosyolab .input, #sosyolab .select { min-height: 44px; }
+    .cmd-input { padding-top: 6px; padding-bottom: 6px; }
+    .cmd-input input { min-height: 44px; }
+
+    /* Üst bar: kırıntı yolu tek satır; uzun ders adı "…" ile kısalır,
+       arama/paylaş düğmeleri sağda sabit kalır. */
+    .topbar { min-height: 64px; }
+    .crumbs { flex: 1 1 auto; flex-wrap: nowrap; }
+    .crumbs > * { flex: none; white-space: nowrap; }
+    .crumbs button { min-width: 44px; min-height: 44px; padding: 0 2px; align-items: center; }
+    .crumbs .now { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Açılır menü: görünür kapatma düğmesi, 44 px satırlar, kaydırma
+       menüde kalır (arka sayfaya zincirlenmez). */
+    .sb-brand { position: relative; padding-right: 64px; }
+    .sb-kapat { display: grid; position: absolute; top: 12px; right: 10px; color: #C9D2DA; border-color: #2A3B49; }
+    .sb-link, .sb-term, .sb-class, .sb-course { min-height: 44px; }
+    .sidebar, .sb-nav, .drawer, .modal, .cmd-results { overscroll-behavior: contain; }
+    .sb-foot { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+    .toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 32px); }
+
+    /* Menü ya da katman açıkken arka sayfa kaymaz (:has desteklemeyen
+       tarayıcıda yalnız bu kilit devre dışı kalır, işlev bozulmaz). */
+    html:has(.scrim) { overflow: hidden; }
+  }
+
+  /* Kısa ekran (yatay telefon, küçük Android): menünün tamamı tek kaydırma
+     alanı olur; topluluk/kullanıcı bloğu ders listesini sıkıştırmaz. */
+  @media (max-width: 900px) and (max-height: 720px), (max-height: 500px) and (pointer: coarse) {
+    .sidebar { overflow-y: auto; }
+    .sb-nav { flex: none; overflow: visible; }
+  }
+
+  /* Güvenlik ağı: denetimde bu kural kapalıyken de hiçbir ekranda taşma
+     bulunmadı (gizlenen bir taşma yok); kullanıcı içeriği için korunur. */
   html, body { overflow-x: hidden; }
   #sosyolab .app, #sosyolab .main, #sosyolab .content { max-width: 100%; }
 

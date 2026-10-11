@@ -1309,6 +1309,7 @@
         <div class="sb-brand">
           <b>Sosyo<span>Lab</span></b>
           <small>Erciyes Üniversitesi<br>Sosyoloji Bölümü</small>
+          <button class="icon-btn sb-kapat" data-action="menu-kapat" aria-label="Gezinmeyi kapat">${svg(I.x)}</button>
         </div>
 
         <nav class="sb-nav" aria-label="Arşiv gezinmesi">
