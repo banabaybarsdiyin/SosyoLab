@@ -265,6 +265,7 @@
      membership ve teacher durumuna göre erişim sınırı RLS'te uygulanır.
      Production INVITE_MODE="server" kullanır; gerekli şema schema + 001..006.
      LOCAL_INVITE_CODE production yapılandırmasında saklanmaz. */
+  const DAVET_SUNUCUDA = (window.SOSYOLAB_CONFIG || {}).INVITE_MODE === "server";
 
   /* Yönetici giriş takma adı. Bu YALNIZCA bir kullanıcı adıdır; yetki vermez.
      Zincir: takma ad → `giris` Edge Function'ında sabit e-posta eşlemesi →
