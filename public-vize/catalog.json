@@ -1,0 +1,230 @@
+{
+  "courses": [
+    {
+      "id": "sos101",
+      "code": "SOS 101",
+      "name": "Sosyolojiye Giriş I",
+      "grade": 1,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos121",
+      "code": "SOS 121",
+      "name": "Psikolojiye Giriş I",
+      "grade": 1,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos131",
+      "code": "SOS 131",
+      "name": "Felsefeye Giriş I",
+      "grade": 1,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos141",
+      "code": "SOS 141",
+      "name": "Bilgi Tek. ve Uygulamaları",
+      "grade": 1,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos151",
+      "code": "SOS 151",
+      "name": "Mantık I",
+      "grade": 1,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos201",
+      "code": "SOS 201",
+      "name": "Sosyal Sorumluluk Projesi",
+      "grade": 2,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos231",
+      "code": "SOS 231",
+      "name": "Sosyolojik Düşünce Tarihi I",
+      "grade": 2,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos241",
+      "code": "SOS 241",
+      "name": "Nicel Araştırma Yöntemleri",
+      "grade": 2,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos273",
+      "code": "SOS 273",
+      "name": "İnsan Ekolojisi",
+      "grade": 2,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos281",
+      "code": "SOS 281",
+      "name": "Türkiye'de Toplumsal Dön.",
+      "grade": 2,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos295",
+      "code": "SOS 295",
+      "name": "İleri İngilizce I",
+      "grade": 2,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos297",
+      "code": "SOS 297",
+      "name": "Din ve Kadın Çalışmaları",
+      "grade": 2,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos301",
+      "code": "SOS 301",
+      "name": "Çağdaş Sosyoloji Teorileri I",
+      "grade": 3,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos341",
+      "code": "SOS 341",
+      "name": "Akademik Araştırma ve Yazım Tek.",
+      "grade": 3,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos345",
+      "code": "SOS 345",
+      "name": "Gelişim Psikolojisi",
+      "grade": 3,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos361",
+      "code": "SOS 361",
+      "name": "Sinema Sosyolojisi",
+      "grade": 3,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos373",
+      "code": "SOS 373",
+      "name": "Yerel Politikalar ve Demokratik Katılım",
+      "grade": 3,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos377",
+      "code": "SOS 377",
+      "name": "Bilim ve Felsefe Tarihi",
+      "grade": 3,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "osd301",
+      "code": "OSD 301",
+      "name": "Bölüm Dışı Seçmeli Ders",
+      "grade": 3,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos401",
+      "code": "SOS 401",
+      "name": "Bitirme Tezi I",
+      "grade": 4,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos403",
+      "code": "SOS 403",
+      "name": "Postmodernizm ve Sosyal Teori",
+      "grade": 4,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos411",
+      "code": "SOS 411",
+      "name": "Türk Sosyolojisi Tarihi I",
+      "grade": 4,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos485",
+      "code": "SOS 485",
+      "name": "Öğrenme Psikolojisi",
+      "grade": 4,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "sos489",
+      "code": "SOS 489",
+      "name": "Göç Çalışmaları",
+      "grade": 4,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    },
+    {
+      "id": "pfd401",
+      "code": "PFD 401",
+      "name": "Özel Öğretim Yöntemleri",
+      "grade": 4,
+      "academicYear": "2026-2027",
+      "semester": "fall",
+      "termId": "2026-2027-fall"
+    }
+  ],
+  "materials": []
+}

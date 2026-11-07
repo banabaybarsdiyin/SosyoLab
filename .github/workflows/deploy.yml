@@ -142,6 +142,41 @@ jobs:
           fi
           echo "Yayın klasörü doğrulandı."
 
+      - name: Add isolated vize archive without changing production files
+        shell: node {0}
+        env:
+          EXPECTED_PARALLEL_MANIFEST: 18420593885033ce63786f2bf3d69b67c2887412ed14240763fb9b20ec77ea10
+        run: |
+          const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict'), crypto = require('node:crypto');
+          const sha = b => crypto.createHash('sha256').update(b).digest('hex');
+          const bytes = fs.readFileSync('releases/vize-parallel-20261107.json');
+          assert.equal(sha(bytes), process.env.EXPECTED_PARALLEL_MANIFEST);
+          const manifest = JSON.parse(bytes);
+          assert.equal(manifest.legacyCommit,'cd14647957993ea7dac399f944e2d0a547bf04a7');
+          function walk(root) {
+            const rows=[];
+            function visit(dir) { for (const e of fs.readdirSync(dir,{withFileTypes:true})) {
+              assert.ok(!e.isSymbolicLink());const file=path.join(dir,e.name);
+              if(e.isDirectory()) visit(file);else { assert.ok(e.isFile());rows.push(path.relative(root,file).split(path.sep).join('/')); }
+            } }
+            visit(root);return rows.sort();
+          }
+          const old = manifest.files.filter(f=>f.kind==='legacy'), fresh=manifest.files.filter(f=>f.kind==='vize');
+          assert.equal(old.length,12);assert.equal(fresh.length,71);assert.equal(manifest.materials,0);
+          assert.deepEqual(walk('_site'),old.map(f=>f.path).sort());
+          for(const f of old) assert.equal(sha(fs.readFileSync(path.join('_site',f.path))),f.sha256,'Existing production changed');
+          assert.ok(fresh.every(f=>f.path.startsWith('vize/')));
+          assert.deepEqual(walk('public-vize'),fresh.map(f=>f.path.slice(5)).sort());
+          for(const f of fresh) {
+            const bytes=fs.readFileSync(path.join('public-vize',f.path.slice(5)));assert.equal(sha(bytes),f.sha256);
+            if(/\.(html|css|js|json)$/.test(f.path))assert.ok(!/supabase\.co|firebaseio\.com|127\.0\.0\.1|localhost|sb_secret_|BEGIN .*PRIVATE KEY|service_role|mock-supabase|data-fill|demo-tools/.test(bytes.toString()));
+          }
+          assert.ok(!fs.existsSync('_site/vize'));
+          fs.cpSync('public-vize','_site/vize',{recursive:true,errorOnExist:true,force:false});
+          assert.deepEqual(walk('_site'),manifest.files.map(f=>f.path).sort());
+          for(const f of manifest.files)assert.equal(sha(fs.readFileSync(path.join('_site',f.path))),f.sha256);
+          console.log('12 legacy files unchanged; 71 isolated vize files admitted; 83 total.');
+
       - name: Siteyi paketle
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

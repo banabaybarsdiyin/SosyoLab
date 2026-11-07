@@ -1,0 +1,515 @@
+{
+  "legacyCommit": "cd14647957993ea7dac399f944e2d0a547bf04a7",
+  "domain": "arsiv.sosyolab.tr",
+  "prefix": "/vize/",
+  "legacyFiles": 12,
+  "vizeFiles": 71,
+  "courses": 25,
+  "materials": 0,
+  "distribution": [
+    5,
+    7,
+    7,
+    6
+  ],
+  "files": [
+    {
+      "path": ".nojekyll",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "kind": "legacy"
+    },
+    {
+      "path": "404.css",
+      "sha256": "b799c35b5b62d70dda18f7502fc915303a4a689ca1bed0dc2f19958944686c2e",
+      "size": 971,
+      "kind": "legacy"
+    },
+    {
+      "path": "404.html",
+      "sha256": "8ed1b094eb1d63a3a3438c1f71fc9b4a05e2fec98f63106090ea0d7e7f5fb02e",
+      "size": 1259,
+      "kind": "legacy"
+    },
+    {
+      "path": "app.js",
+      "sha256": "9f77ed2b6c3c978161950e95e745fd33e818247c4e43df2e79bdce6ebcc4a6fa",
+      "size": 133035,
+      "kind": "legacy"
+    },
+    {
+      "path": "assets/fonts/inter-latin-ext.subset.woff2",
+      "sha256": "293474866304b9897bd87703c762b9b87849cd4e7a6427ade82494ba1a0b2779",
+      "size": 23716,
+      "kind": "legacy"
+    },
+    {
+      "path": "assets/fonts/inter-latin.subset.woff2",
+      "sha256": "24553ceb6212fc5d508090d7b55aa1dd527640cc43fc432f2c14fe7ce7102108",
+      "size": 44540,
+      "kind": "legacy"
+    },
+    {
+      "path": "assets/fonts/newsreader-latin-ext.subset.woff2",
+      "sha256": "f105448feb741a1f80516086ac548c4c966d317ef173b1d1fb93f0d5f62602e2",
+      "size": 18344,
+      "kind": "legacy"
+    },
+    {
+      "path": "assets/fonts/newsreader-latin.subset.woff2",
+      "sha256": "2f8184ddfebb36e16508945005253eeafb0b4c0a2c0eabd1d084795504773480",
+      "size": 36316,
+      "kind": "legacy"
+    },
+    {
+      "path": "config.js",
+      "sha256": "93cc287ed57887c9b84d1923daa9a5734b1b01d49607f285ce3d510005340924",
+      "size": 2181,
+      "kind": "legacy"
+    },
+    {
+      "path": "index.html",
+      "sha256": "d22686b26a2b990a432ef7bba7d730f8efdc16600690aa56410984c59671293a",
+      "size": 3426,
+      "kind": "legacy"
+    },
+    {
+      "path": "styles.css",
+      "sha256": "96465dc40259d0bbb85c498c731fb24d08976c16ac9205b2129954cb68701c97",
+      "size": 42608,
+      "kind": "legacy"
+    },
+    {
+      "path": "vendor/supabase-js-2.45.4.min.js",
+      "sha256": "8596965fe918e656600a1b568d3a168f5c0d3d22a600886bb6f44a6555db01e7",
+      "size": 110797,
+      "kind": "legacy"
+    },
+    {
+      "path": "vize/.nojekyll",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/404.html",
+      "sha256": "8a43cbbbb15380915bf11a1481e5066f9f89e86e4778af08c390a8384fa92c13",
+      "size": 2527,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/archive.html",
+      "sha256": "bef2ac319eb074b612be56aa3dc1ba382a62a65307a7becd4ee1b557a3156183",
+      "size": 40526,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/css/app.css",
+      "sha256": "fd046760e07c3f2342510198056a6555f0ea31140100b45a0b61539756403103",
+      "size": 11784,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/css/fonts.css",
+      "sha256": "765bf7cea0854e8db20378c479ec68200129c458c8662622dada4a41e9646ea7",
+      "size": 15882,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/css/public.css",
+      "sha256": "2736ba54f36c5d9479dd2ecb7f4ff85333b636573c1534b6a32e7799293e7e94",
+      "size": 576,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/css/tailwind.generated.css",
+      "sha256": "bc07fb8985912840043bc6c8062c1f076d330f49b00f0fd4a8b03dd018b22c62",
+      "size": 73900,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/inter-1be3448e292f.woff2",
+      "sha256": "1be3448e292fbf05ffe176fe1e43f135013d50b1e7d324ad1a558f623d3bb6f6",
+      "size": 18996,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/inter-3100e775e861.woff2",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "size": 48256,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/inter-34b9c504cab7.woff2",
+      "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+      "size": 85068,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/inter-5c66f9e07e90.woff2",
+      "sha256": "5c66f9e07e90c6d4ac4922cc68d60de26c17b1858e677fb5e603fce3952b3ff2",
+      "size": 10252,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/inter-6e9e020a25f9.woff2",
+      "sha256": "6e9e020a25f9b56d418f2c085b1d3c09725a4da23fe693a5b463064606732190",
+      "size": 11232,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/inter-71d5ee93cc1e.woff2",
+      "sha256": "71d5ee93cc1e9f1d520a3a8b66456de18c7879d8df09d57fcd2eaff75fef0075",
+      "size": 18748,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/inter-ca157063339a.woff2",
+      "sha256": "ca157063339ac4ad418f214f3abfed119b0798ab4d377386ce5c9e5a7a435ebd",
+      "size": 25960,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/materialsymbolsoutlined-063d21b404f5.woff2",
+      "sha256": "063d21b404f5e048c8f7535d3ca4cf80c6d996a08e5c5ba8dfe38bb8dfdb4595",
+      "size": 1139560,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/plusjakartasans-153fc85b7029.woff2",
+      "sha256": "153fc85b70298beeb1d61a5f723331649e7f23bb77302a66e61cb3e2fbdb5e79",
+      "size": 27348,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/plusjakartasans-38e3b8fd8045.woff2",
+      "sha256": "38e3b8fd8045048eb311d90170a4429ed2c8f405852dc3d91b5af8452758703f",
+      "size": 21728,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/plusjakartasans-b275d1258601.woff2",
+      "sha256": "b275d1258601dda240fc6a1d4a6cad56e691d898f5cdf1b0e4fd6ca0022d8e40",
+      "size": 8352,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/fonts/plusjakartasans-c46a510ab439.woff2",
+      "sha256": "c46a510ab43925a55ecfe6c2d5fad0ce1902cd48ab276621d41f7afa42e4daee",
+      "size": 1716,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/img/favicon.svg",
+      "sha256": "a72d345258ffaacfffa62c3d21d93b11a09da84bd8bd3f5306523c667d8195be",
+      "size": 234,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/img/tailwind-0c148dda22ec.svg",
+      "sha256": "0c148dda22ec8eb9efdf5a034db45741c15b6efde867d3c0541cf589a65e63a3",
+      "size": 108,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/img/tailwind-62b61eb224c8.svg",
+      "sha256": "62b61eb224c8f3d42e76c39e08e383685a352a29bd28ecd0279454320e345349",
+      "size": 206,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/img/tailwind-82e54dba7e35.svg",
+      "sha256": "82e54dba7e3567454003cf0d042c0f4e4be8c11469c1255bb922f6341b04bc39",
+      "size": 175,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/img/tailwind-92c2683be6b4.svg",
+      "sha256": "92c2683be6b442107242edb6de07ac4c349abdbee834ef7c46af6ec7d46c2eb8",
+      "size": 185,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/js/public.js",
+      "sha256": "bf4af78a09ba102db3fc1a01ca54c167dcde20ba9f6db325187019130e142409",
+      "size": 1177,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/licenses/Inter-OFL.txt",
+      "sha256": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+      "size": 4377,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/licenses/MaterialSymbols-Apache-2.0.txt",
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "size": 11357,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/licenses/PlusJakartaSans-OFL.txt",
+      "sha256": "995c7199cab65954f545996326755daee7b63cc6b42b06c13da1f9502ab08a99",
+      "size": 4402,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/licenses/Tailwind-MIT.txt",
+      "sha256": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+      "size": 1071,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/assets/licenses/TailwindForms-MIT.txt",
+      "sha256": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+      "size": 1071,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/catalog.json",
+      "sha256": "37f07e2194ec213f6411f181571b137c8047b4d0f73a631ea67540978f34c968",
+      "size": 5394,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/CNAME",
+      "sha256": "477c75075bb9ab069d4a51bd8b4d63ba1242a85469c2e49cce06526ca5c04377",
+      "size": 18,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/osd301.html",
+      "sha256": "02b4d78eb4200f860a384fb1b2b3636d379d37247a01054ee2d8805fa9e29c93",
+      "size": 3301,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/pfd401.html",
+      "sha256": "d1b7a55e5fc62cc0229670411cf6a5cb0b794dec4ae467eef0969ee2e800e63e",
+      "size": 3297,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos101.html",
+      "sha256": "3475306e4b820f2b2e111b8e0ebf65b6f7cb299201b25565c0356bb5fd8b522a",
+      "size": 3283,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos121.html",
+      "sha256": "5be2a37b3185ad0d058aa0698f315b302c27b2658d244053056006998ba0467f",
+      "size": 3283,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos131.html",
+      "sha256": "93cbeb0703a55266c57946e3585499b6c0bc0e115a9a3c014cdc52d0a058a870",
+      "size": 3279,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos141.html",
+      "sha256": "a4adee203d8ef6501dbbdf02f3e23e333672c736757e2c7a8f13d5aeef1bf9b8",
+      "size": 3297,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos151.html",
+      "sha256": "8c0bbdb6e807aa2c6f28b5fb75bb34ce1d0ca6aa85f248bca027eb1435463db6",
+      "size": 3261,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos201.html",
+      "sha256": "7a67c42571bb188d85ddb7c0f58a000c94258ff98475c49b2a3dd2a0e0641f62",
+      "size": 3293,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos231.html",
+      "sha256": "7afcffc64f12faba3d48a831fd54100b1e4fcde20ae12f6414cb958b2c797f2f",
+      "size": 3303,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos241.html",
+      "sha256": "721ba90e1c28101a1d293866a3347dcdb794cb0b727c151485e05042e5c8a2fa",
+      "size": 3301,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos273.html",
+      "sha256": "ffda8474b674f1fe99d7822b0ddaecf4c5977cb4e6b74eb000e5256be86bb26a",
+      "size": 3275,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos281.html",
+      "sha256": "ef1de4e0ca41d02fb742bfc1d1762370c784b937a7a5a3b2ddbae34658d8df6d",
+      "size": 3305,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos295.html",
+      "sha256": "f7f392045793ee03edd72d0780e95b4b5f814c9fb1177270ec2c5c958ff2cbea",
+      "size": 3281,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos297.html",
+      "sha256": "f988c9ac9ea3f18485b83415dae24784b9e95df4f2ec75b1b6cb0b7c09c244ce",
+      "size": 3301,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos301.html",
+      "sha256": "a8a449edf00a75ef36041e1fe2b4592c0f9724e435e5eaf82a69f792b965f380",
+      "size": 3305,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos341.html",
+      "sha256": "bd9834d91930c4e5532d948225cbd2526878df4978658173d6875b852b7245bc",
+      "size": 3313,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos345.html",
+      "sha256": "624317a0d7c2c0c40073858e0a6b43bab600d3e28514e76af3a935c00dcf38da",
+      "size": 3283,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos361.html",
+      "sha256": "d727a1c764346484e0e14c0f390ade8fd298c7b3fef56951b2dd5976b6f2b0ad",
+      "size": 3279,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos373.html",
+      "sha256": "150a87fa4ded6f818f7a694abcd22daa243a26cc430c117de8fdb9e6c86901a2",
+      "size": 3325,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos377.html",
+      "sha256": "54516f1279762ca01d85b42ab581abf851eaa068ed5501c6a347a56d3bebf602",
+      "size": 3289,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos401.html",
+      "sha256": "a074f47e947143fee61658fdd21be499804421a6e7983195682d8d7f8ab53a81",
+      "size": 3271,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos403.html",
+      "sha256": "c4dfd391de6bc50f9b72180317e84f390de2d96eb038611ac86ff78a09835f90",
+      "size": 3301,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos411.html",
+      "sha256": "551d89d92b679243da7e6f668c72e5a64f33eca338384eacddc4293391f049e9",
+      "size": 3295,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos485.html",
+      "sha256": "b230c15c36bde7666fe66b562ec73ba7cc7229f2ea3781a2766cd0cab5218ccf",
+      "size": 3285,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/ders/sos489.html",
+      "sha256": "ad558a98c7d59cb133e24a83af2374d0513761b837710d5b18fe783dc67f8d58",
+      "size": 3285,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/hakkinda.html",
+      "sha256": "63f16570429f04d6b6c995dbcc27a5a856cdf69eb20712971e6939e639c6b1cf",
+      "size": 3522,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/index.html",
+      "sha256": "50d5d892a776b609873e2bd8a7dcb49669aec40ce05e6a8eaec36a6d6d9fe521",
+      "size": 13527,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/1/bahar/index.html",
+      "sha256": "97a204f931e797d408da3ed4f171d909f4c33aa08167fec6dad0b56aaf55f7d0",
+      "size": 4525,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/1/guz/index.html",
+      "sha256": "08326aac4256c1450bb2d1c5b7bdedd612651b5b9d6327d61faf9cc3b64fc02f",
+      "size": 11675,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/1/index.html",
+      "sha256": "333d7400cd0e6fda07c5b88105253ed9daa0aeb2d3b968071c6f08db13e7721f",
+      "size": 4391,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/2/bahar/index.html",
+      "sha256": "5c5cc8d0524e89e161487a7b54f89ff227921d592eb09bbb445bce5815111d40",
+      "size": 4525,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/2/guz/index.html",
+      "sha256": "b8bbd14c91dbe83d70eb90a89053b3645b5c9c6f0917e13a7cf3b7af21ef248f",
+      "size": 14635,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/2/index.html",
+      "sha256": "39c6b66c05edbc3d3f35ae8d58b7e3b539579b05b96018c8bcbac0dd5c978f3e",
+      "size": 4391,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/3/bahar/index.html",
+      "sha256": "b5d87a270660f34d85fd8838af4b3d2c71f38d3ac48fcd19a5e038c7e903ff85",
+      "size": 4525,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/3/guz/index.html",
+      "sha256": "b24e890e0da3c91b7eb9f660ace7548b894c463974dd9624a88e94c4525a50bf",
+      "size": 14671,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/3/index.html",
+      "sha256": "6df6065dad5a02a85634b4e37d7fd90b87bc284a6ffeefa077df0bc1573609fa",
+      "size": 4391,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/4/bahar/index.html",
+      "sha256": "1df7eec39af50d00476205bc9c9adcf03d5aa8a8ff6b3b4e0d838f4aec732b8f",
+      "size": 4525,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/4/guz/index.html",
+      "sha256": "8eaacf416c52c40d6f164f66f164e7a658928b5eb6ce22912d08af1daf30df45",
+      "size": 13158,
+      "kind": "vize"
+    },
+    {
+      "path": "vize/sinif/4/index.html",
+      "sha256": "18369a919da1833350abba312d24782a2356e068e3d44a9c91a1a2bd6782bcd0",
+      "size": 4391,
+      "kind": "vize"
+    }
+  ]
+}

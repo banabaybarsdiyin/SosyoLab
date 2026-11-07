@@ -1,0 +1,14 @@
+/* Expand interactive hit areas while retaining the approved Stitch palette and type families. */
+.site-nav a, .site-footer a, .site-brand,
+nav[aria-label="Sınıf seçimi"] a, nav[aria-label="Dönem seçimi"] a,
+[data-course-id] a, [data-search-preset], form[role="search"] button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+input { min-height: 44px; }
+input:focus-visible, a:focus-visible, button:focus-visible {
+  outline: 3px solid #4648d4 !important;
+  outline-offset: 3px !important;
+}
+@media (max-width: 760px) { input { font-size: 16px; } }
